@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Allenamento Log</title>
+<meta name="description" content="Registra rapidamente esercizi e ripetizioni durante l'allenamento.">
+
+<!-- Tema browser -->
+<meta name="theme-color" content="#161A20">
+
+<!-- iOS: esecuzione a schermo intero come app -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Allenamento">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<!-- Android / PWA -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #161A20;
+    --text: #EDEDE6;
+    --muted: #8A8F98;
+    --line: #333A44;
+    --accent: #4C7BFF;
+    --success: #4CD787;
+    --error: #FF6B6B;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding:
+      max(24px, env(safe-area-inset-top))
+      max(24px, env(safe-area-inset-right))
+      max(24px, env(safe-area-inset-bottom))
+      max(24px, env(safe-area-inset-left));
+  }
+
+  .app { width: 100%; max-width: 400px; }
+
+  header { margin-bottom: 40px; }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 2rem;
+    letter-spacing: -0.02em;
+    margin: 0 0 4px;
+  }
+
+  .subtitle { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+  .field { margin-bottom: 28px; }
+
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--line);
+    color: var(--text);
+    font-size: 1.25rem;
+    padding: 8px 2px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+
+  input:focus {
+    outline: none;
+    border-bottom-color: var(--accent);
+  }
+
+  input::placeholder { color: #4A505A; }
+
+  button {
+    width: 100%;
+    min-height: 52px;
+    padding: 16px;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #0B0D11;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: 'Space Grotesk', sans-serif;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+
+  #status {
+    text-align: center;
+    min-height: 20px;
+    margin-top: 16px;
+    font-size: 0.9rem;
+  }
+  #status.pending { color: var(--muted); }
+  #status.success { color: var(--success); }
+  #status.error { color: var(--error); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>Allenamento</h1>
+    <p class="subtitle">Registra la serie appena fatta</p>
+  </header>
+
+  <form id="logForm" novalidate>
+    <div class="field">
+      <label for="exercise">Esercizio</label>
+      <input type="text" id="exercise" name="exercise" placeholder="Es. Squat" autocomplete="off" required>
+    </div>
+
+    <div class="field">
+      <label for="reps">Ripetizioni</label>
+      <input type="number" id="reps" name="reps" placeholder="Es. 12" inputmode="numeric" min="1" step="1" required>
+    </div>
+
+    <button type="submit" id="submitBtn">Salva serie</button>
+
+    <p id="status" role="status" aria-live="polite"></p>
+  </form>
+</div>
+
+<script>
+  // Sostituisci con l'URL del tuo deploy di Google Apps Script (termina con /exec)
+  const SCRIPT_URL = "INSERISCI_QUI_URL_WEB_APP";
+
+  const form = document.getElementById('logForm');
+  const btn = document.getElementById('submitBtn');
+  const status = document.getElementById('status');
+  const exerciseInput = document.getElementById('exercise');
+  const repsInput = document.getElementById('reps');
+  let statusTimer = null;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const esercizio = exerciseInput.value.trim();
+    const ripetizioni = repsInput.value;
+    if (!esercizio || !ripetizioni) return;
+
+    clearTimeout(statusTimer);
+    btn.disabled = true;
+    status.className = 'pending';
+    status.textContent = 'Invio in corso…';
+
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        // text/plain evita la preflight CORS che Apps Script non gestisce
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ esercizio, ripetizioni })
+      });
+
+      const data = await res.json();
+
+      if (data.result === 'success') {
+        status.className = 'success';
+        status.textContent = 'Salvato ✓';
+        form.reset();
+        exerciseInput.focus();
+      } else {
+        throw new Error(data.message || 'Errore sconosciuto');
+      }
+    } catch (err) {
+      status.className = 'error';
+      status.textContent = 'Errore, riprova';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      statusTimer = setTimeout(() => {
+        status.textContent = '';
+        status.className = '';
+      }, 3000);
+    }
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(console.error);
+    });
+  }
+</script>
+
+</body>
+</html>
