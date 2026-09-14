@@ -1,0 +1,48 @@
+# Dipendenze
+node_modules/
+.pnpm-store/
+
+# Log e report
+*.log
+logs/
+*.pid
+*.pid.lock
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Variabili d'ambiente e file locali
+.env
+.env.*
+!.env.example
+*.local
+
+# Output di build e test
+dist/
+build/
+coverage/
+.nyc_output/
+.cache/
+.parcel-cache/
+.vite/
+tmp/
+temp/
+
+# File del sistema operativo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# File dell'editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Cache di strumenti e servizi locali
+.eslintcache
+.stylelintcache
+.npm/
+.yarn/
+.pnp.*

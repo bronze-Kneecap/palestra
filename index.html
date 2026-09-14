@@ -88,12 +88,88 @@
     transition: border-color 0.2s;
   }
 
+  textarea {
+    width: 100%;
+    min-height: 84px;
+    resize: vertical;
+    background: transparent;
+    border: 2px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 1rem;
+    padding: 10px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+
+  select {
+    width: 100%;
+    appearance: none;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--line);
+    color: var(--text);
+    font-size: 1.1rem;
+    padding: 8px 2px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+
+  select:focus {
+    outline: none;
+    border-bottom-color: var(--accent);
+  }
+
+  select:disabled { color: var(--muted); }
+
   input:focus {
     outline: none;
     border-bottom-color: var(--accent);
   }
 
-  input::placeholder { color: #4A505A; }
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .weight-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+  }
+
+  .weight-row > label:first-child {
+    flex: 1;
+  }
+
+  .reps-row {
+    display: flex;
+    gap: 16px;
+  }
+
+  .reps-row .field-input {
+    flex: 1;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 10px;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .checkbox-label input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+  }
+
+  input::placeholder,
+  textarea::placeholder { color: #4A505A; }
 
   button {
     width: 100%;
@@ -139,13 +215,63 @@
 
   <form id="logForm" novalidate>
     <div class="field">
-      <label for="exercise">Esercizio</label>
-      <input type="text" id="exercise" name="exercise" placeholder="Es. Squat" autocomplete="off" required>
+      <label for="date">Data</label>
+      <input type="date" id="date" name="date" required>
     </div>
 
     <div class="field">
-      <label for="reps">Ripetizioni</label>
-      <input type="number" id="reps" name="reps" placeholder="Es. 12" inputmode="numeric" min="1" step="1" required>
+      <label for="muscleGroup">Gruppo muscolare</label>
+      <select id="muscleGroup" name="muscleGroup" required>
+        <option value="" selected disabled>Scegli un gruppo</option>
+        <option value="Spalle">Spalle</option>
+        <option value="Petto">Petto</option>
+        <option value="Gambe">Gambe</option>
+        <option value="Braccia">Braccia</option>
+        <option value="Addome">Addome</option>
+        <option value="Dorso">Dorso</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="exercise">Esercizio</label>
+      <select id="exercise" name="exercise" required disabled>
+        <option value="" selected disabled>Scegli prima un gruppo</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Ripetizioni per set</label>
+      <div class="reps-row">
+        <label class="field-input" for="repsMin">
+          Da
+          <input type="number" id="repsMin" name="repsMin" placeholder="Es. 8" inputmode="numeric" min="1" step="1" required>
+        </label>
+        <label class="field-input" for="repsMax">
+          A
+          <input type="number" id="repsMax" name="repsMax" placeholder="Es. 12" inputmode="numeric" min="1" step="1" required>
+        </label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="sets">Set</label>
+      <input type="number" id="sets" name="sets" placeholder="Es. 4" inputmode="numeric" min="1" step="1" required>
+    </div>
+
+    <div class="field weight-row">
+      <label for="weight">
+        Peso (kg)
+        <input type="number" id="weight" name="weight" placeholder="Es. 20" inputmode="decimal" min="0" step="0.5">
+      </label>
+      <label class="checkbox-label" for="mono">
+        <input type="checkbox" id="mono" name="mono">
+        Mono
+      </label>
+    </div>
+
+    <div class="field">
+      <label for="comment">Commento</label>
+      <textarea id="comment" name="comment" placeholder="Es. Ultimo set impegnativo" maxlength="500"></textarea>
     </div>
 
     <button type="submit" id="submitBtn">Salva serie</button>
@@ -161,16 +287,63 @@
   const form = document.getElementById('logForm');
   const btn = document.getElementById('submitBtn');
   const status = document.getElementById('status');
+  const dateInput = document.getElementById('date');
+  const muscleGroupInput = document.getElementById('muscleGroup');
   const exerciseInput = document.getElementById('exercise');
-  const repsInput = document.getElementById('reps');
+  const repsMinInput = document.getElementById('repsMin');
+  const repsMaxInput = document.getElementById('repsMax');
+  const setsInput = document.getElementById('sets');
+  const weightInput = document.getElementById('weight');
+  const monoInput = document.getElementById('mono');
+  const commentInput = document.getElementById('comment');
   let statusTimer = null;
+
+  const exercisesByGroup = {
+    Spalle: ['Military press', 'Alzate laterali', 'Alzate frontali', 'Reverse fly'],
+    Petto: ['Panca piana', 'Panca inclinata', 'Chest press', 'Croci'],
+    Gambe: ['Squat', 'Leg press', 'Affondi', 'Leg extension', 'Leg curl'],
+    Braccia: ['Curl con bilanciere', 'Curl con manubri', 'Pushdown', 'French press'],
+    Addome: ['Crunch', 'Plank', 'Leg raise', 'Ab wheel'],
+    Dorso: ['Stacco da terra', 'Lat machine', 'Rematore', 'Pulley']
+  };
+
+  const getToday = () => {
+    const today = new Date();
+    const offset = today.getTimezoneOffset() * 60000;
+    return new Date(today.getTime() - offset).toISOString().slice(0, 10);
+  };
+
+  const resetDate = () => {
+    dateInput.value = getToday();
+  };
+
+  muscleGroupInput.addEventListener('change', () => {
+    exerciseInput.innerHTML = '<option value="" selected disabled>Scegli un esercizio</option>';
+    exercisesByGroup[muscleGroupInput.value].forEach((exercise) => {
+      const option = document.createElement('option');
+      option.value = exercise;
+      option.textContent = exercise;
+      exerciseInput.appendChild(option);
+    });
+    exerciseInput.disabled = false;
+  });
+
+  resetDate();
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const esercizio = exerciseInput.value.trim();
-    const ripetizioni = repsInput.value;
-    if (!esercizio || !ripetizioni) return;
+    const data = dateInput.value;
+    const gruppoMuscolare = muscleGroupInput.value;
+    const esercizio = exerciseInput.value;
+    const ripetizioniMin = repsMinInput.value;
+    const ripetizioniMax = repsMaxInput.value;
+    const ripetizioni = `${ripetizioniMin}-${ripetizioniMax}`;
+    const set = setsInput.value;
+    const peso = weightInput.value;
+    const mono = monoInput.checked;
+    const commento = commentInput.value.trim();
+    if (!data || !gruppoMuscolare || !esercizio || !ripetizioniMin || !ripetizioniMax || !set) return;
 
     clearTimeout(statusTimer);
     btn.disabled = true;
@@ -182,7 +355,7 @@
         method: 'POST',
         // text/plain evita la preflight CORS che Apps Script non gestisce
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ esercizio, ripetizioni })
+        body: JSON.stringify({ data, gruppoMuscolare, esercizio, ripetizioni, set, peso, mono, commento })
       });
 
       const data = await res.json();
@@ -191,6 +364,9 @@
         status.className = 'success';
         status.textContent = 'Salvato ✓';
         form.reset();
+        exerciseInput.innerHTML = '<option value="" selected disabled>Scegli prima un gruppo</option>';
+        exerciseInput.disabled = true;
+        resetDate();
         exerciseInput.focus();
       } else {
         throw new Error(data.message || 'Errore sconosciuto');
