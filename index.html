@@ -358,9 +358,20 @@
         body: JSON.stringify({ data, gruppoMuscolare, esercizio, ripetizioni, set, peso, mono, commento })
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let responseData;
 
-      if (data.result === 'success') {
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        throw new Error(`Google Sheets ha restituito una risposta non valida (HTTP ${res.status})`);
+      }
+
+      if (!res.ok) {
+        throw new Error(responseData.message || `Google Sheets ha rifiutato la richiesta (HTTP ${res.status})`);
+      }
+
+      if (responseData.result === 'success') {
         status.className = 'success';
         status.textContent = 'Salvato ✓';
         form.reset();
@@ -369,11 +380,13 @@
         resetDate();
         exerciseInput.focus();
       } else {
-        throw new Error(data.message || 'Errore sconosciuto');
+        throw new Error(responseData.message || 'Google Sheets non ha confermato il salvataggio');
       }
     } catch (err) {
       status.className = 'error';
-      status.textContent = 'Errore, riprova';
+      status.textContent = err instanceof TypeError
+        ? 'Collegamento a Google Sheets non disponibile'
+        : err.message;
       console.error(err);
     } finally {
       btn.disabled = false;
