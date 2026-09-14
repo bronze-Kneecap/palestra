@@ -240,17 +240,8 @@
     </div>
 
     <div class="field">
-      <label>Ripetizioni per set</label>
-      <div class="reps-row">
-        <label class="field-input" for="repsMin">
-          Da
-          <input type="number" id="repsMin" name="repsMin" placeholder="Es. 8" inputmode="numeric" min="1" step="1" required>
-        </label>
-        <label class="field-input" for="repsMax">
-          A
-          <input type="number" id="repsMax" name="repsMax" placeholder="Es. 12" inputmode="numeric" min="1" step="1" required>
-        </label>
-      </div>
+      <label for="repetitions">Ripetizioni per set</label>
+      <input type="number" id="repetitions" name="repetitions" placeholder="Es. 10" inputmode="numeric" min="1" step="1" required>
     </div>
 
     <div class="field">
@@ -290,8 +281,7 @@
   const dateInput = document.getElementById('date');
   const muscleGroupInput = document.getElementById('muscleGroup');
   const exerciseInput = document.getElementById('exercise');
-  const repsMinInput = document.getElementById('repsMin');
-  const repsMaxInput = document.getElementById('repsMax');
+  const repetitionsInput = document.getElementById('repetitions');
   const setsInput = document.getElementById('sets');
   const weightInput = document.getElementById('weight');
   const monoInput = document.getElementById('mono');
@@ -336,14 +326,12 @@
     const data = dateInput.value;
     const gruppoMuscolare = muscleGroupInput.value;
     const esercizio = exerciseInput.value;
-    const ripetizioniMin = repsMinInput.value;
-    const ripetizioniMax = repsMaxInput.value;
-    const ripetizioni = `${ripetizioniMin}-${ripetizioniMax}`;
+    const ripetizioni = repetitionsInput.value;
     const set = setsInput.value;
     const peso = weightInput.value;
     const mono = monoInput.checked;
     const commento = commentInput.value.trim();
-    if (!data || !gruppoMuscolare || !esercizio || !ripetizioniMin || !ripetizioniMax || !set) return;
+    if (!data || !gruppoMuscolare || !esercizio || !ripetizioni || !set) return;
 
     clearTimeout(statusTimer);
     btn.disabled = true;
