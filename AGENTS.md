@@ -13,4 +13,9 @@ Prima di agire:
 - Dopo ogni modifica controlla `git status`, `git check-ignore` e `git diff --check`.
 - Non usare `git add -f` per aggirare `.gitignore` senza una motivazione esplicita.
 
+## Commit e push
+
+- Ogni volta che crei un commit, esegui subito anche `git push origin <branch>`.
+- Dopo il push verifica che il branch locale e `origin/<branch>` siano allineati con `git status`.
+
 L'obiettivo e mantenere il repository leggero, riproducibile e composto soltanto da sorgenti puliti e file necessari al funzionamento del progetto.
