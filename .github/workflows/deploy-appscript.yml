@@ -1,0 +1,55 @@
+name: Deploy Google Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Code.gs'
+      - '.clasp.json'
+      - '.claspignore'
+      - '.github/workflows/deploy-appscript.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install --save-dev @google/clasp
+
+      - name: Write clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo "Missing CLASPRC_JSON secret"
+            exit 1
+          fi
+
+          mkdir -p "$HOME"
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+
+          if [ -n "$SCRIPT_ID" ]; then
+            node - <<'NODE'
+const fs = require('fs');
+const path = '.clasp.json';
+const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
+cfg.scriptId = process.env.SCRIPT_ID;
+fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
+NODE
+          fi
+        shell: bash
+
+      - name: Push to Google Apps Script
+        env:
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: npx clasp push --force

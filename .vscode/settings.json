@@ -1,0 +1,4 @@
+{
+  "omnicopilot.baseUrl": "http://127.0.0.1:20128",
+  "omnicopilot.statusBar": true
+}

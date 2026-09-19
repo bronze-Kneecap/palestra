@@ -34,6 +34,7 @@ Desktop.ini
 
 # File dell'editor
 .vscode/*
+.vscode/tasks.json
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/

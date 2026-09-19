@@ -122,6 +122,22 @@
 
   select:disabled { color: var(--muted); }
 
+  .exercise-tools { display: flex; justify-content: flex-end; margin-top: 10px; }
+  .text-button {
+    width: auto; min-height: 0; padding: 0; border-radius: 0;
+    background: transparent; color: var(--accent); font-family: inherit; font-size: 0.85rem;
+  }
+  .text-button:active { transform: none; opacity: 0.75; }
+  .exercise-manager { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
+  .exercise-manager[hidden] { display: none; }
+  .manager-row { display: flex; align-items: flex-end; gap: 10px; }
+  .manager-row label { flex: 1; }
+  .manager-row input { font-size: 1rem; }
+  .manager-row button { width: auto; min-height: 42px; padding: 10px 14px; border-radius: 8px; }
+  .exercise-list { display: grid; gap: 6px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .exercise-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); font-size: 0.9rem; }
+  .delete-exercise { width: auto; min-height: 0; padding: 3px 0; border-radius: 0; background: transparent; color: var(--error); font-family: inherit; font-size: 0.8rem; }
+
   input:focus {
     outline: none;
     border-bottom-color: var(--accent);
@@ -237,6 +253,18 @@
       <select id="exercise" name="exercise" required disabled>
         <option value="" selected disabled>Scegli prima un gruppo</option>
       </select>
+      <div class="exercise-tools">
+        <button type="button" class="text-button" id="manageExercisesBtn">Gestisci esercizi</button>
+      </div>
+      <div class="exercise-manager" id="exerciseManager" hidden>
+        <div class="manager-row">
+          <label for="newExercise">Nuovo esercizio
+            <input type="text" id="newExercise" maxlength="80" placeholder="Es. Trazioni">
+          </label>
+          <button type="button" id="addExerciseBtn">Aggiungi</button>
+        </div>
+        <ul class="exercise-list" id="exerciseList"></ul>
+      </div>
     </div>
 
     <div class="field">
@@ -281,6 +309,11 @@
   const dateInput = document.getElementById('date');
   const muscleGroupInput = document.getElementById('muscleGroup');
   const exerciseInput = document.getElementById('exercise');
+  const manageExercisesBtn = document.getElementById('manageExercisesBtn');
+  const exerciseManager = document.getElementById('exerciseManager');
+  const newExerciseInput = document.getElementById('newExercise');
+  const addExerciseBtn = document.getElementById('addExerciseBtn');
+  const exerciseList = document.getElementById('exerciseList');
   const repetitionsInput = document.getElementById('repetitions');
   const setsInput = document.getElementById('sets');
   const weightInput = document.getElementById('weight');
@@ -288,7 +321,7 @@
   const commentInput = document.getElementById('comment');
   let statusTimer = null;
 
-  const exercisesByGroup = {
+  let exercisesByGroup = {
     Spalle: ['Military press', 'Alzate laterali', 'Alzate frontali', 'Reverse fly'],
     Petto: ['Panca piana', 'Panca inclinata', 'Chest press', 'Croci'],
     Gambe: ['Squat', 'Leg press', 'Affondi', 'Leg extension', 'Leg curl'],
@@ -307,16 +340,89 @@
     dateInput.value = getToday();
   };
 
-  muscleGroupInput.addEventListener('change', () => {
+  const setExercises = (exercises) => {
+    exercisesByGroup = exercises || {};
+    updateExerciseOptions();
+    renderExerciseList();
+  };
+
+  const updateExerciseOptions = () => {
+    const exercises = exercisesByGroup[muscleGroupInput.value] || [];
     exerciseInput.innerHTML = '<option value="" selected disabled>Scegli un esercizio</option>';
-    exercisesByGroup[muscleGroupInput.value].forEach((exercise) => {
+    exercises.forEach((exercise) => {
       const option = document.createElement('option');
       option.value = exercise;
       option.textContent = exercise;
       exerciseInput.appendChild(option);
     });
-    exerciseInput.disabled = false;
+    exerciseInput.disabled = exercises.length === 0;
+  };
+
+  const renderExerciseList = () => {
+    exerciseList.innerHTML = '';
+    (exercisesByGroup[muscleGroupInput.value] || []).forEach((exercise) => {
+      const item = document.createElement('li');
+      const name = document.createElement('span');
+      name.textContent = exercise;
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'delete-exercise';
+      deleteButton.textContent = 'Rimuovi';
+      deleteButton.addEventListener('click', () => changeExercise('deleteExercise', exercise));
+      item.append(name, deleteButton);
+      exerciseList.appendChild(item);
+    });
+  };
+
+  const changeExercise = async (action, exercise) => {
+    const group = muscleGroupInput.value;
+    if (!group) return;
+
+    addExerciseBtn.disabled = true;
+    status.className = 'pending';
+    status.textContent = 'Aggiornamento in corso…';
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action, gruppoMuscolare: group, esercizio: exercise })
+      });
+      const data = await response.json();
+      if (!response.ok || data.result !== 'success') throw new Error(data.message || 'Impossibile aggiornare gli esercizi');
+      setExercises(data.exercises);
+      newExerciseInput.value = '';
+      status.className = 'success';
+      status.textContent = data.message;
+    } catch (err) {
+      status.className = 'error';
+      status.textContent = err.message;
+    } finally {
+      addExerciseBtn.disabled = false;
+      statusTimer = setTimeout(() => { status.textContent = ''; status.className = ''; }, 3000);
+    }
+  };
+
+  muscleGroupInput.addEventListener('change', () => {
+    updateExerciseOptions();
+    renderExerciseList();
   });
+
+  manageExercisesBtn.addEventListener('click', () => {
+    exerciseManager.hidden = !exerciseManager.hidden;
+    if (!exerciseManager.hidden) renderExerciseList();
+  });
+
+  addExerciseBtn.addEventListener('click', () => {
+    const exercise = newExerciseInput.value.trim();
+    if (exercise) changeExercise('saveExercise', exercise);
+  });
+
+  fetch(`${SCRIPT_URL}?action=listExercises`)
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.result === 'success') setExercises(data.exercises);
+    })
+    .catch((error) => console.error('Catalogo esercizi non disponibile', error));
 
   resetDate();
 
@@ -365,6 +471,7 @@
         form.reset();
         exerciseInput.innerHTML = '<option value="" selected disabled>Scegli prima un gruppo</option>';
         exerciseInput.disabled = true;
+        exerciseManager.hidden = true;
         resetDate();
         exerciseInput.focus();
       } else {
