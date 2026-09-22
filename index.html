@@ -32,6 +32,7 @@
     --accent: #4C7BFF;
     --success: #4CD787;
     --error: #FF6B6B;
+    --warning: #E0B341;
     --nav-height: 64px;
   }
 
@@ -185,6 +186,14 @@
     font-size: 0.9rem;
     overflow-wrap: anywhere;
   }
+  .sync {
+    margin: 10px 0 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+    min-height: 18px;
+  }
+  .sync.attesa { color: var(--warning); }
+
   .pending { color: var(--muted); }
   .success { color: var(--success); }
   .error { color: var(--error); }
@@ -433,6 +442,7 @@
         <header>
           <h1>Esercizi</h1>
           <p class="subtitle">Modifica i menu a tendina della schermata Allenamento</p>
+          <p id="syncStatus" class="sync" role="status" aria-live="polite"></p>
         </header>
 
         <div class="field add-row">
@@ -453,7 +463,7 @@
           </div>
           <p id="endpointStatus" role="status" aria-live="polite"></p>
 
-          <p>I menu sono salvati su questo dispositivo. L'elenco di partenza si modifica in cima a <code>index.html</code>.</p>
+          <p>I menu si sincronizzano da soli sul foglio Google, cosi li ritrovi su ogni dispositivo dove apri l'app. Senza connessione restano su questo dispositivo e partono appena torna la rete. L'elenco di partenza si modifica in cima a <code>index.html</code>.</p>
           <button type="button" id="resetCatalogBtn" class="secondary">Ripristina elenco predefinito</button>
         </details>
       </section>
@@ -520,6 +530,7 @@
   const screenExercises = $('screenExercises');
   const exerciseGroups = $('exerciseGroups');
   const exerciseStatus = $('exerciseStatus');
+  const syncStatus = $('syncStatus');
   const newGroupInput = $('newGroup');
   const addGroupBtn = $('addGroupBtn');
 
@@ -581,15 +592,32 @@
     return gruppi.length ? gruppi : null;
   };
 
-  let menu = (() => {
+  // aggiornato: quando il menu e stato toccato l'ultima volta (serve a capire
+  // quale versione vince fra dispositivi). sincronizzato: se il foglio ha gia
+  // questa versione.
+  let menu;
+  let aggiornato = 0;
+  let sincronizzato = false;
+
+  (() => {
     const salvato = store.get(CHIAVE_MENU);
-    if (!salvato) return copiaPredefinito();
+    if (!salvato) { menu = copiaPredefinito(); return; }
+
     try {
-      return normalizza(JSON.parse(salvato)) || copiaPredefinito();
+      const dati = JSON.parse(salvato);
+      // Il primo formato salvava solo l'elenco: va ancora letto.
+      const voci = Array.isArray(dati) ? normalizza(dati) : normalizza(dati && dati.voci);
+      menu = voci || copiaPredefinito();
+      if (!Array.isArray(dati) && dati) {
+        aggiornato = Number(dati.aggiornato) || 0;
+        sincronizzato = dati.sincronizzato === true;
+      }
     } catch (e) {
-      return copiaPredefinito();
+      menu = copiaPredefinito();
     }
   })();
+
+  const scriviLocale = () => store.set(CHIAVE_MENU, JSON.stringify({ aggiornato, sincronizzato, voci: menu }));
 
   const trovaGruppo = (nome) => menu.filter((voce) => voce.gruppo === nome)[0] || null;
   const uguali = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -605,9 +633,12 @@
   // selGruppo/selEsercizio: cosa deve restare scelto nella prima schermata dopo
   // il ridisegno. Omessi, si conserva la scelta attuale.
   const salvaMenu = (messaggio, selGruppo, selEsercizio) => {
-    store.set(CHIAVE_MENU, JSON.stringify(menu));
+    aggiornato = Date.now();
+    sincronizzato = false;
+    scriviLocale();
     disegnaTutto(selGruppo, selEsercizio);
     if (messaggio) showStatus(exerciseStatus, 'success', messaggio);
+    programmaInvio();
   };
 
   /* ------------------------- operazioni sul menu (istantanee, senza rete) */
@@ -954,15 +985,10 @@
     return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(valore);
   }
 
-  const inviaAFogli = async (payload) => {
+  const chiamaFogli = async (url, options) => {
     let response;
     try {
-      response = await fetch(scriptUrl, {
-        method: 'POST',
-        // text/plain evita la preflight CORS che Apps Script non gestisce
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
+      response = await fetch(url, options);
     } catch (e) {
       throw new Error('Google Sheets non raggiungibile: controlla la connessione');
     }
@@ -990,6 +1016,112 @@
 
     return dati;
   };
+
+  const inviaAFogli = (payload) => chiamaFogli(scriptUrl, {
+    method: 'POST',
+    // text/plain evita la preflight CORS che Apps Script non gestisce
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+
+  const leggiDaFogli = (azione) =>
+    chiamaFogli(scriptUrl + '?action=' + encodeURIComponent(azione), { method: 'GET' });
+
+  /* ---------------------------------- sincronizzazione dei menu ---------
+     Il foglio fa solo da deposito: riceve il testo della configurazione e lo
+     restituisce identico. Fra due dispositivi vince la versione modificata
+     piu di recente. Senza rete l'app continua a funzionare con quella locale
+     e riprova appena torna il collegamento.
+     -------------------------------------------------------------------- */
+
+  const mostraSync = (inAttesa, testo) => {
+    syncStatus.className = inAttesa ? 'sync attesa' : 'sync';
+    syncStatus.textContent = testo;
+  };
+
+  let invioProgrammato = null;
+
+  const inviaConfigurazione = async () => {
+    clearTimeout(invioProgrammato);
+    if (!urlValido(scriptUrl)) return false;
+    if (aggiornato === 0) aggiornato = Date.now();
+
+    try {
+      await inviaAFogli({
+        action: 'scriviConfig',
+        config: JSON.stringify({ aggiornato, voci: menu })
+      });
+      sincronizzato = true;
+      scriviLocale();
+      mostraSync(false, 'Menu sincronizzati ✓');
+      return true;
+    } catch (e) {
+      mostraSync(true, 'Modifiche in attesa di connessione');
+      return false;
+    }
+  };
+
+  // Le modifiche si accumulano per un attimo: cosi rinominare tre esercizi di
+  // fila manda una sola richiesta invece di tre.
+  function programmaInvio() {
+    clearTimeout(invioProgrammato);
+    if (!urlValido(scriptUrl)) {
+      mostraSync(true, 'Menu salvati solo su questo dispositivo');
+      return;
+    }
+    mostraSync(false, 'Salvataggio…');
+    invioProgrammato = setTimeout(inviaConfigurazione, 800);
+  }
+
+  const sincronizza = async () => {
+    if (!urlValido(scriptUrl)) {
+      mostraSync(true, 'Menu salvati solo su questo dispositivo');
+      return;
+    }
+
+    mostraSync(false, 'Sincronizzazione…');
+
+    let risposta;
+    try {
+      risposta = await leggiDaFogli('leggiConfig');
+    } catch (e) {
+      mostraSync(true, sincronizzato ? 'Sincronizzazione non riuscita' : 'Modifiche in attesa di connessione');
+      return;
+    }
+
+    // Un deposito illeggibile non deve passare per un problema di rete.
+    let remoto = null;
+    try {
+      if (risposta.config) remoto = JSON.parse(risposta.config);
+    } catch (e) {
+      remoto = null;
+    }
+
+    const vociRemote = remoto ? normalizza(remoto.voci) : null;
+    const dataRemota = remoto ? Number(remoto.aggiornato) || 0 : 0;
+
+    if (vociRemote && dataRemota > aggiornato) {
+      menu = vociRemote;
+      aggiornato = dataRemota;
+      sincronizzato = true;
+      scriviLocale();
+      disegnaTutto();
+      mostraSync(false, 'Menu ripresi da un altro dispositivo');
+      return;
+    }
+
+    if (!sincronizzato || dataRemota < aggiornato) {
+      await inviaConfigurazione();
+      return;
+    }
+
+    mostraSync(false, 'Menu sincronizzati ✓');
+  };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') sincronizza();
+  });
+  window.addEventListener('online', sincronizza);
 
   const oggi = () => {
     const adesso = new Date();
@@ -1066,12 +1198,11 @@
     showStatus(endpointStatus, 'pending', 'Verifica in corso…', 0);
 
     try {
-      const risposta = await fetch(scriptUrl, { method: 'GET' });
-      const testo = await risposta.text();
-      JSON.parse(testo);
+      await leggiDaFogli('ping');
       showStatus(endpointStatus, 'success', 'Collegamento riuscito', 6000);
+      sincronizza();
     } catch (err) {
-      showStatus(endpointStatus, 'error', 'Salvato, ma la verifica non è riuscita', 6000);
+      showStatus(endpointStatus, 'error', 'Salvato, ma la verifica non è riuscita: ' + err.message, 6000);
     }
   });
 
@@ -1164,6 +1295,7 @@
 
   dateInput.value = oggi();
   disegnaTutto();
+  sincronizza();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

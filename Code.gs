@@ -1,10 +1,15 @@
 /**
  * Backend minimo per l'app Allenamento.
  *
- * Riceve una serie dalla prima schermata e la scrive in fondo al foglio.
+ * Fa due cose sole:
+ *   1. riceve una serie dalla prima schermata e la scrive in fondo al foglio;
+ *   2. parcheggia e restituisce la configurazione dei menu, cosi l'app ritrova
+ *      le stesse tendine su qualunque dispositivo.
+ *
  * Non conosce i gruppi muscolari ne gli esercizi: arrivano come testo e come
- * testo vengono scritti, senza controlli. L'elenco dei menu vive dentro
- * l'applicazione (index.html), dove e piu comodo modificarlo.
+ * testo vengono scritti, senza controlli. Anche la configurazione e testo
+ * opaco, mai interpretato qui: il filtro vive nell'applicazione (index.html),
+ * dove e piu comodo modificarlo.
  */
 
 const CONFIG = {
@@ -12,6 +17,9 @@ const CONFIG = {
   spreadsheetId: '',
   sheetName: 'Allenamenti'
 };
+
+const CONFIG_SHEET_NAME = 'Configurazione';
+const CONFIG_MAX_CARATTERI = 45000; // una cella di Sheets ne regge 50.000
 
 const HEADERS = [
   'Data',
@@ -24,12 +32,18 @@ const HEADERS = [
   'Commento'
 ];
 
-function doGet() {
+function doGet(event) {
   try {
+    const azione = event && event.parameter ? String(event.parameter.action || '') : '';
+
+    if (azione === 'leggiConfig') {
+      return jsonResponse({ result: 'success', config: leggiConfigurazione() });
+    }
+
     return jsonResponse({
       result: 'success',
       message: 'Endpoint Google Sheets attivo',
-      foglio: getSheet().getParent().getName()
+      foglio: getSpreadsheet().getName()
     });
   } catch (error) {
     return errorResponse(error);
@@ -47,6 +61,17 @@ function doPost(event) {
       payload = JSON.parse(event.postData.contents);
     } catch (parseError) {
       throw new Error('Dati della richiesta non validi');
+    }
+
+    if (payload.action === 'scriviConfig') {
+      const lockConfig = LockService.getScriptLock();
+      lockConfig.waitLock(20000);
+      try {
+        scriviConfigurazione(payload.config);
+      } finally {
+        lockConfig.releaseLock();
+      }
+      return jsonResponse({ result: 'success', message: 'Configurazione salvata' });
     }
 
     const row = buildRow(payload);
@@ -97,7 +122,37 @@ function numeroOppureTesto(value) {
   return isNaN(numero) ? raw : numero;
 }
 
-function getSheet() {
+/**
+ * Configurazione dei menu: un testo qualunque, scritto e riletto identico.
+ * Qui dentro non viene mai analizzato, quindi aggiungere o togliere campi
+ * nell'app non richiede di ritoccare questo file.
+ */
+function leggiConfigurazione() {
+  const valore = getConfigSheet().getRange(2, 1).getValue();
+  return valore === null || valore === undefined ? '' : String(valore);
+}
+
+function scriviConfigurazione(testo) {
+  const contenuto = testo === null || testo === undefined ? '' : String(testo);
+  if (contenuto.length > CONFIG_MAX_CARATTERI) {
+    throw new Error('Configurazione troppo lunga per una cella del foglio');
+  }
+  getConfigSheet().getRange(2, 1).setValue(contenuto);
+}
+
+function getConfigSheet() {
+  const spreadsheet = getSpreadsheet();
+  let sheet = spreadsheet.getSheetByName(CONFIG_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG_SHEET_NAME);
+    sheet.getRange(1, 1).setValue('Menu dell\'app: aggiornato in automatico, non modificare a mano');
+  }
+
+  return sheet;
+}
+
+function getSpreadsheet() {
   const spreadsheet = CONFIG.spreadsheetId
     ? SpreadsheetApp.openById(CONFIG.spreadsheetId)
     : SpreadsheetApp.getActiveSpreadsheet();
@@ -106,6 +161,11 @@ function getSheet() {
     throw new Error('Collega questo progetto Apps Script a un file Google Sheets oppure imposta spreadsheetId');
   }
 
+  return spreadsheet;
+}
+
+function getSheet() {
+  const spreadsheet = getSpreadsheet();
   return spreadsheet.getSheetByName(CONFIG.sheetName) || spreadsheet.insertSheet(CONFIG.sheetName);
 }
 
