@@ -1,5 +1,9 @@
 name: Deploy Google Apps Script
 
+# Pubblica Code.gs sul progetto Apps Script, se e configurato.
+# Senza i secret non c'e niente da pubblicare: il workflow lo segnala e
+# chiude senza errori, invece di colorare di rosso ogni push.
+
 on:
   push:
     branches: [main]
@@ -19,7 +23,43 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Verifica la configurazione
+        id: controllo
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          mancanti=""
+
+          if [ -z "$CLASPRC_JSON" ]; then
+            mancanti="$mancanti CLASPRC_JSON"
+          fi
+
+          if [ -z "$SCRIPT_ID" ] && grep -q 'YOUR_APPS_SCRIPT_ID' .clasp.json; then
+            mancanti="$mancanti SCRIPT_ID"
+          fi
+
+          if [ -z "$mancanti" ]; then
+            echo "pronto=si" >> "$GITHUB_OUTPUT"
+            echo "Configurazione presente: procedo con la pubblicazione."
+            exit 0
+          fi
+
+          echo "pronto=no" >> "$GITHUB_OUTPUT"
+          echo "::notice::Pubblicazione automatica non attiva: mancano i secret$mancanti. Il codice resta su GitHub; per attivarla segui DEPLOY.md."
+
+          {
+            echo "## Pubblicazione su Apps Script non attiva"
+            echo ""
+            echo "Secret mancanti:$mancanti"
+            echo ""
+            echo "Non e un errore: il codice e aggiornato su GitHub e l'app web continua a funzionare."
+            echo "Per pubblicare in automatico su Apps Script, aggiungi i secret seguendo \`DEPLOY.md\`."
+            echo "In alternativa copia \`Code.gs\` a mano nell'editor Apps Script."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Setup Node.js
+        if: steps.controllo.outputs.pronto == 'si'
         uses: actions/setup-node@v5
         with:
           node-version: '20'
@@ -27,34 +67,30 @@ jobs:
       # clasp 2.x e la versione che legge le credenziali da ~/.clasprc.json,
       # il formato scritto dal passo successivo. La 3.x ne usa un altro.
       - name: Install clasp
+        if: steps.controllo.outputs.pronto == 'si'
         run: npm install --no-save @google/clasp@2.4.2
 
       - name: Write clasp credentials
+        if: steps.controllo.outputs.pronto == 'si'
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
         run: |
-          if [ -z "$CLASPRC_JSON" ]; then
-            echo "::error::Manca il secret CLASPRC_JSON: e il contenuto di ~/.clasprc.json dopo 'clasp login' sul tuo computer."
-            exit 1
-          fi
-
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
 
           if [ -n "$SCRIPT_ID" ]; then
             node -e 'const fs = require("fs"); const cfg = JSON.parse(fs.readFileSync(".clasp.json", "utf8")); cfg.scriptId = process.env.SCRIPT_ID; fs.writeFileSync(".clasp.json", JSON.stringify(cfg, null, 2) + "\n");'
-          elif grep -q 'YOUR_APPS_SCRIPT_ID' .clasp.json; then
-            echo "::error::Manca il secret SCRIPT_ID e .clasp.json contiene ancora il segnaposto. Copia l'ID da Apps Script (Impostazioni progetto)."
-            exit 1
           fi
 
       - name: Push to Google Apps Script
+        if: steps.controllo.outputs.pronto == 'si'
         run: npx clasp push --force
 
       # clasp push aggiorna solo il codice del progetto: l'URL /exec continua a
       # servire l'ultima versione pubblicata. Con DEPLOYMENT_ID il workflow
       # ripubblica quel deployment mantenendo lo stesso URL.
       - name: Update the web app deployment
+        if: steps.controllo.outputs.pronto == 'si'
         env:
           DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
         run: |
