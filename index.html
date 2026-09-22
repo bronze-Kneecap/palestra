@@ -119,49 +119,7 @@
     border-bottom-color: var(--accent);
   }
 
-  select:disabled { color: var(--muted); }
-
-  .manager-row { display: flex; align-items: flex-end; gap: 10px; }
-  .manager-row label { flex: 1; }
-  .manager-row input { font-size: 1rem; }
-  .manager-row button { width: auto; min-height: 42px; padding: 10px 14px; border-radius: 8px; }
-
-  .group-section { margin-bottom: 26px; }
-  .group-heading {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 1rem;
-    margin: 0 0 10px;
-  }
-  .group-empty { margin: 0; color: var(--muted); font-size: 0.85rem; }
-
-  .exercise-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-  .exercise-list li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    color: var(--text);
-    font-size: 0.95rem;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .exercise-list li input[type="text"] { flex: 1; font-size: 0.95rem; padding: 4px 2px; }
-  .exercise-actions { display: flex; gap: 6px; flex-shrink: 0; }
-  .icon-button {
-    width: 34px;
-    min-height: 34px;
-    padding: 0;
-    border-radius: 8px;
-    background: transparent;
-    border: 1px solid var(--line);
-    color: var(--text);
-    font-size: 0.95rem;
-    line-height: 1;
-  }
-  .icon-button:active { transform: scale(0.94); }
-  .icon-button.delete-exercise { color: var(--error); border-color: var(--error); }
-  .icon-button.save-exercise { color: var(--success); border-color: var(--success); }
+  select:disabled { color: var(--muted); opacity: 1; }
 
   input:focus {
     outline: none;
@@ -179,9 +137,7 @@
     gap: 20px;
   }
 
-  .weight-row > label:first-child {
-    flex: 1;
-  }
+  .weight-row > label:first-child { flex: 1; }
 
   .checkbox-label {
     display: flex;
@@ -219,20 +175,130 @@
   }
 
   button:active { transform: scale(0.98); }
-  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
   button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
 
-  #status, #exerciseStatus {
+  #status, #exerciseStatus, #endpointStatus {
     text-align: center;
     min-height: 20px;
     margin-top: 16px;
     font-size: 0.9rem;
+    overflow-wrap: anywhere;
   }
   .pending { color: var(--muted); }
   .success { color: var(--success); }
   .error { color: var(--error); }
 
-  /* Schermate affiancate: "Allenamento" e "Esercizi" a destra, navigabili con swipe o bottom nav */
+  /* Avviso mostrato quando i menu non arrivano da Google Sheets */
+  .notice {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--error);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 24px;
+    color: var(--error);
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+  .notice.visible { display: flex; }
+  .notice p { margin: 0; flex: 1; }
+  .notice button {
+    width: auto;
+    min-height: 36px;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Seconda schermata: una card per ogni gruppo del menu */
+  .group-card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .group-name {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    overflow-wrap: anywhere;
+  }
+
+  .group-header input { flex: 1; min-width: 0; font-size: 1.05rem; }
+  .group-empty { margin: 10px 0 0; color: var(--muted); font-size: 0.85rem; }
+
+  .exercise-list { margin: 8px 0 0; padding: 0; list-style: none; }
+  .exercise-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.95rem;
+    padding: 8px 0;
+    border-top: 1px solid var(--line);
+  }
+  .exercise-list li:first-child { border-top: none; }
+  .exercise-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .exercise-list li input { flex: 1; min-width: 0; font-size: 0.95rem; padding: 4px 2px; }
+
+  .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .icon-button {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+  .icon-button:active { transform: scale(0.94); }
+  .icon-button.danger { color: var(--error); border-color: var(--error); }
+  .icon-button.confirm { color: var(--success); border-color: var(--success); }
+
+  .add-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .add-row label { margin: 0; }
+  .add-row input { flex: 1; min-width: 0; font-size: 0.95rem; }
+  .add-row button {
+    width: auto;
+    min-height: 40px;
+    padding: 0 16px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .settings {
+    margin-top: 28px;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+  .settings summary {
+    color: var(--muted);
+    font-size: 0.85rem;
+    cursor: pointer;
+    list-style: none;
+  }
+  .settings summary::-webkit-details-marker { display: none; }
+  .settings summary::before { content: '⚙ '; }
+  .settings p { color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
+  .settings input { font-size: 0.85rem; }
+
+  /* Schermate affiancate, navigabili con swipe o bottom nav */
   .screens-viewport {
     flex: 1;
     overflow: hidden;
@@ -292,11 +358,17 @@
   <div class="screens-viewport" id="screensViewport">
     <div class="screens" id="screens">
 
+      <!-- Schermata 1: scrive una riga nel foglio Google -->
       <section class="screen" id="screenLog">
         <header>
           <h1>Allenamento</h1>
           <p class="subtitle">Registra la serie appena fatta</p>
         </header>
+
+        <div class="notice" id="catalogNotice">
+          <p id="catalogNoticeText"></p>
+          <button type="button" id="retryCatalogBtn">Riprova</button>
+        </div>
 
         <form id="logForm" novalidate>
           <div class="field">
@@ -306,22 +378,12 @@
 
           <div class="field">
             <label for="muscleGroup">Gruppo muscolare</label>
-            <select id="muscleGroup" name="muscleGroup" required>
-              <option value="" selected disabled>Scegli un gruppo</option>
-              <option value="Spalle">Spalle</option>
-              <option value="Petto">Petto</option>
-              <option value="Gambe">Gambe</option>
-              <option value="Braccia">Braccia</option>
-              <option value="Addome">Addome</option>
-              <option value="Dorso">Dorso</option>
-            </select>
+            <select id="muscleGroup" name="muscleGroup" required></select>
           </div>
 
           <div class="field">
             <label for="exercise">Esercizio</label>
-            <select id="exercise" name="exercise" required disabled>
-              <option value="" selected disabled>Scegli prima un gruppo</option>
-            </select>
+            <select id="exercise" name="exercise" required></select>
           </div>
 
           <div class="field">
@@ -356,34 +418,31 @@
         </form>
       </section>
 
+      <!-- Schermata 2: modifica i menu usati dalla schermata 1 -->
       <section class="screen" id="screenExercises">
         <header>
           <h1>Esercizi</h1>
-          <p class="subtitle">Crea, modifica o elimina gli esercizi del catalogo</p>
+          <p class="subtitle">Modifica i menu della schermata Allenamento</p>
         </header>
 
-        <div class="field">
-          <label for="newExerciseGroup">Aggiungi a</label>
-          <select id="newExerciseGroup">
-            <option value="Spalle">Spalle</option>
-            <option value="Petto">Petto</option>
-            <option value="Gambe">Gambe</option>
-            <option value="Braccia">Braccia</option>
-            <option value="Addome">Addome</option>
-            <option value="Dorso">Dorso</option>
-          </select>
-        </div>
-
-        <div class="field manager-row">
-          <label for="newExercise">Nuovo esercizio
-            <input type="text" id="newExercise" maxlength="80" placeholder="Es. Trazioni">
-          </label>
-          <button type="button" id="addExerciseBtn">Aggiungi</button>
+        <div class="field add-row">
+          <input type="text" id="newGroup" maxlength="80" placeholder="Nuovo gruppo muscolare" aria-label="Nuovo gruppo muscolare">
+          <button type="button" id="addGroupBtn">Aggiungi</button>
         </div>
 
         <p id="exerciseStatus" role="status" aria-live="polite"></p>
 
         <div id="exerciseGroups"></div>
+
+        <details class="settings">
+          <summary>Collegamento a Google Sheets</summary>
+          <p>Incolla qui l'URL del deploy Apps Script (termina con <code>/exec</code>). Il deploy deve essere eseguito come te e accessibile a "Chiunque".</p>
+          <div class="add-row">
+            <input type="url" id="endpointUrl" placeholder="https://script.google.com/macros/s/.../exec" aria-label="URL del deploy Apps Script" autocomplete="off" spellcheck="false">
+            <button type="button" id="saveEndpointBtn">Salva</button>
+          </div>
+          <p id="endpointStatus" role="status" aria-live="polite"></p>
+        </details>
       </section>
 
     </div>
@@ -400,118 +459,287 @@
 </div>
 
 <script>
-  // Sostituisci con l'URL del tuo deploy di Google Apps Script (termina con /exec)
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnGB1tYuHTDhFOWkRgH_1KOf090LG6k_0-RS2veVkWsAWBnc6ZXwkztfsV09syZFhRJA/exec";
+(() => {
+  'use strict';
 
-  const form = document.getElementById('logForm');
-  const btn = document.getElementById('submitBtn');
-  const status = document.getElementById('status');
-  const dateInput = document.getElementById('date');
-  const muscleGroupInput = document.getElementById('muscleGroup');
-  const exerciseInput = document.getElementById('exercise');
-  const newExerciseGroup = document.getElementById('newExerciseGroup');
-  const newExerciseInput = document.getElementById('newExercise');
-  const addExerciseBtn = document.getElementById('addExerciseBtn');
-  const exerciseGroups = document.getElementById('exerciseGroups');
-  const exerciseStatus = document.getElementById('exerciseStatus');
-  const MUSCLE_GROUPS = ['Spalle', 'Petto', 'Gambe', 'Braccia', 'Addome', 'Dorso'];
-  const repetitionsInput = document.getElementById('repetitions');
-  const setsInput = document.getElementById('sets');
-  const weightInput = document.getElementById('weight');
-  const monoInput = document.getElementById('mono');
-  const commentInput = document.getElementById('comment');
-  let statusTimer = null;
-  let exerciseStatusTimer = null;
+  // URL del deploy di Google Apps Script (termina con /exec).
+  // Puo essere sostituito a runtime dalla sezione "Collegamento a Google Sheets".
+  const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwnGB1tYuHTDhFOWkRgH_1KOf090LG6k_0-RS2veVkWsAWBnc6ZXwkztfsV09syZFhRJA/exec';
 
-  let exercisesByGroup = {
-    Spalle: ['Military press', 'Alzate laterali', 'Alzate frontali', 'Reverse fly'],
-    Petto: ['Panca piana', 'Panca inclinata', 'Chest press', 'Croci'],
-    Gambe: ['Squat', 'Leg press', 'Affondi', 'Leg extension', 'Leg curl'],
-    Braccia: ['Curl con bilanciere', 'Curl con manubri', 'Pushdown', 'French press'],
-    Addome: ['Crunch', 'Plank', 'Leg raise', 'Ab wheel'],
-    Dorso: ['Stacco da terra', 'Lat machine', 'Rematore', 'Pulley']
+  const URL_KEY = 'allenamento:scriptUrl';
+  const CATALOG_KEY = 'allenamento:catalog';
+
+  const $ = (id) => document.getElementById(id);
+
+  const form = $('logForm');
+  const submitBtn = $('submitBtn');
+  const status = $('status');
+  const dateInput = $('date');
+  const muscleGroupInput = $('muscleGroup');
+  const exerciseInput = $('exercise');
+  const repetitionsInput = $('repetitions');
+  const setsInput = $('sets');
+  const weightInput = $('weight');
+  const monoInput = $('mono');
+  const commentInput = $('comment');
+
+  const catalogNotice = $('catalogNotice');
+  const catalogNoticeText = $('catalogNoticeText');
+  const retryCatalogBtn = $('retryCatalogBtn');
+
+  const screenExercises = $('screenExercises');
+  const exerciseGroups = $('exerciseGroups');
+  const exerciseStatus = $('exerciseStatus');
+  const newGroupInput = $('newGroup');
+  const addGroupBtn = $('addGroupBtn');
+
+  const endpointUrlInput = $('endpointUrl');
+  const saveEndpointBtn = $('saveEndpointBtn');
+  const endpointStatus = $('endpointStatus');
+
+  /* ------------------------------------------------ memoria locale (PWA) */
+
+  const store = {
+    get(key) { try { return localStorage.getItem(key); } catch (e) { return null; } },
+    set(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* quota o modalita privata */ } }
   };
 
-  const getToday = () => {
-    const today = new Date();
-    const offset = today.getTimezoneOffset() * 60000;
-    return new Date(today.getTime() - offset).toISOString().slice(0, 10);
+  let scriptUrl = (store.get(URL_KEY) || DEFAULT_SCRIPT_URL).trim();
+  let catalog = { groups: [] };
+  let catalogLoaded = false;
+
+  /* ------------------------------------------------------------- stato UI */
+
+  const statusTimers = new WeakMap();
+
+  const showStatus = (el, kind, message, timeout) => {
+    clearTimeout(statusTimers.get(el));
+    el.className = kind;
+    el.textContent = message;
+    if (timeout !== 0) {
+      statusTimers.set(el, setTimeout(() => {
+        el.textContent = '';
+        el.className = '';
+      }, timeout || 4000));
+    }
   };
 
-  const resetDate = () => {
-    dateInput.value = getToday();
+  const showNotice = (message) => {
+    catalogNoticeText.textContent = message;
+    catalogNotice.classList.add('visible');
   };
 
-  const setExercises = (exercises) => {
-    exercisesByGroup = exercises || {};
+  const hideNotice = () => catalogNotice.classList.remove('visible');
+
+  /* ------------------------------------------------------- chiamate di rete */
+
+  const isConfigured = () => /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(scriptUrl);
+
+  const requestJson = async (url, options) => {
+    let response;
+    try {
+      response = await fetch(url, options);
+    } catch (e) {
+      throw new Error('Google Sheets non raggiungibile: controlla la connessione');
+    }
+
+    let text;
+    try {
+      text = await response.text();
+    } catch (e) {
+      throw new Error('Risposta interrotta da Google Sheets');
+    }
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      if (/accounts\.google\.com|ServiceLogin|Accedi con Google/i.test(text)) {
+        throw new Error('Il deploy Apps Script non è pubblico: impostalo su "Chiunque"');
+      }
+      throw new Error('Risposta non valida da Google Sheets (HTTP ' + response.status + '). Controlla il link del deploy.');
+    }
+
+    if (!response.ok || data.result !== 'success') {
+      throw new Error(data.message || 'Google Sheets ha rifiutato la richiesta (HTTP ' + response.status + ')');
+    }
+
+    return data;
+  };
+
+  /* ---------------------------------------------------------- catalogo menu */
+
+  // Accetta sia il formato nuovo {groups:[{name,exercises}]} sia il vecchio
+  // {Gruppo:[esercizi]}, cosi un deploy non ancora aggiornato resta leggibile.
+  const normalizeCatalog = (raw) => {
+    if (!raw || typeof raw !== 'object') return { groups: [] };
+
+    const source = Array.isArray(raw.groups)
+      ? raw.groups
+      : Object.keys(raw).map((name) => ({ name, exercises: raw[name] }));
+
+    const groups = [];
+    source.forEach((group) => {
+      if (!group || typeof group.name !== 'string') return;
+      const name = group.name.trim();
+      if (!name || groups.some((g) => g.name === name)) return;
+
+      const exercises = Array.isArray(group.exercises)
+        ? group.exercises
+            .map((exercise) => (typeof exercise === 'string' ? exercise.trim() : ''))
+            .filter((exercise, index, list) => exercise && list.indexOf(exercise) === index)
+        : [];
+
+      groups.push({ name, exercises });
+    });
+
+    return { groups };
+  };
+
+  const findGroup = (name) => catalog.groups.filter((group) => group.name === name)[0] || null;
+
+  const applyCatalog = (raw, options) => {
+    catalog = normalizeCatalog(raw);
+    catalogLoaded = true;
+    if (!options || options.persist !== false) {
+      store.set(CATALOG_KEY, JSON.stringify(catalog));
+    }
+    renderGroupSelect();
     updateExerciseOptions();
-    renderAllGroups();
+    renderManager();
+    refreshNotice();
+  };
+
+  const refreshNotice = () => {
+    if (!isConfigured()) {
+      showNotice('Collegamento a Google Sheets non configurato: apri la schermata Esercizi e incolla l’URL del deploy.');
+      return;
+    }
+    if (!catalog.groups.length) {
+      showNotice(catalogLoaded
+        ? 'Nessun gruppo nel catalogo: creane uno dalla schermata Esercizi.'
+        : 'Menu non caricati da Google Sheets.');
+      return;
+    }
+    hideNotice();
+  };
+
+  const loadCatalog = async (options) => {
+    const silent = options && options.silent;
+    if (!isConfigured()) {
+      refreshNotice();
+      return false;
+    }
+    if (!silent) showStatus(exerciseStatus, 'pending', 'Caricamento menu…', 0);
+    try {
+      const data = await requestJson(scriptUrl + '?action=listExercises', { method: 'GET' });
+      applyCatalog(data.catalog || data.exercises);
+      if (!silent) showStatus(exerciseStatus, 'success', 'Menu aggiornati');
+      return true;
+    } catch (err) {
+      showNotice(err.message);
+      if (!silent) showStatus(exerciseStatus, 'error', err.message, 6000);
+      return false;
+    }
+  };
+
+  const catalogAction = async (action, payload) => {
+    if (!isConfigured()) {
+      showStatus(exerciseStatus, 'error', 'Configura prima l’URL del deploy Apps Script', 6000);
+      return false;
+    }
+
+    showStatus(exerciseStatus, 'pending', 'Aggiornamento in corso…', 0);
+    try {
+      const data = await requestJson(scriptUrl, {
+        method: 'POST',
+        // text/plain evita la preflight CORS che Apps Script non gestisce
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(Object.assign({ action }, payload))
+      });
+      applyCatalog(data.catalog || data.exercises);
+      showStatus(exerciseStatus, 'success', data.message || 'Aggiornato');
+      return true;
+    } catch (err) {
+      showStatus(exerciseStatus, 'error', err.message, 6000);
+      return false;
+    }
+  };
+
+  /* ------------------------------------------- menu della prima schermata */
+
+  const fillSelect = (select, values, placeholderText, selected) => {
+    select.innerHTML = '';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.disabled = true;
+    placeholder.textContent = placeholderText;
+    select.appendChild(placeholder);
+
+    values.forEach((value) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+    });
+
+    if (selected && values.indexOf(selected) !== -1) select.value = selected;
+    else placeholder.selected = true;
+
+    select.disabled = values.length === 0;
+  };
+
+  const renderGroupSelect = () => {
+    const names = catalog.groups.map((group) => group.name);
+    fillSelect(
+      muscleGroupInput,
+      names,
+      names.length ? 'Scegli un gruppo' : 'Nessun gruppo: creane uno in Esercizi',
+      muscleGroupInput.value
+    );
   };
 
   const updateExerciseOptions = () => {
-    const exercises = exercisesByGroup[muscleGroupInput.value] || [];
-    exerciseInput.innerHTML = '<option value="" selected disabled>Scegli un esercizio</option>';
-    exercises.forEach((exercise) => {
-      const option = document.createElement('option');
-      option.value = exercise;
-      option.textContent = exercise;
-      exerciseInput.appendChild(option);
-    });
-    exerciseInput.disabled = exercises.length === 0;
+    const group = findGroup(muscleGroupInput.value);
+    const exercises = group ? group.exercises : [];
+    const placeholder = !muscleGroupInput.value
+      ? 'Scegli prima un gruppo'
+      : (exercises.length ? 'Scegli un esercizio' : 'Nessun esercizio in questo gruppo');
+
+    fillSelect(exerciseInput, exercises, placeholder, exerciseInput.value);
   };
 
-  const callExerciseAction = async (action, payload) => {
-    clearTimeout(exerciseStatusTimer);
-    exerciseStatus.className = 'pending';
-    exerciseStatus.textContent = 'Aggiornamento in corso…';
-    let success = false;
-    try {
-      const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action, ...payload })
-      });
-      const data = await response.json();
-      if (!response.ok || data.result !== 'success') throw new Error(data.message || 'Impossibile aggiornare gli esercizi');
-      setExercises(data.exercises);
-      exerciseStatus.className = 'success';
-      exerciseStatus.textContent = data.message;
-      success = true;
-    } catch (err) {
-      exerciseStatus.className = 'error';
-      exerciseStatus.textContent = err.message;
-    } finally {
-      exerciseStatusTimer = setTimeout(() => { exerciseStatus.textContent = ''; exerciseStatus.className = ''; }, 3000);
-    }
-    return success;
+  /* --------------------------------------- seconda schermata: editor menu */
+
+  const iconButton = (label, glyph, className, onClick) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'icon-button ' + className;
+    button.textContent = glyph;
+    button.setAttribute('aria-label', label);
+    button.addEventListener('click', onClick);
+    return button;
   };
 
-  const buildExerciseItem = (group, exercise) => {
+  const buildExerciseItem = (groupName, exercise) => {
     const item = document.createElement('li');
 
     const renderView = () => {
       item.innerHTML = '';
       const name = document.createElement('span');
+      name.className = 'exercise-name';
       name.textContent = exercise;
 
       const actions = document.createElement('span');
-      actions.className = 'exercise-actions';
+      actions.className = 'row-actions';
+      actions.append(
+        iconButton('Rinomina ' + exercise, '✏️', 'edit', renderEdit),
+        iconButton('Elimina ' + exercise, '🗑️', 'danger', () => {
+          catalogAction('deleteExercise', { gruppoMuscolare: groupName, esercizio: exercise });
+        })
+      );
 
-      const editButton = document.createElement('button');
-      editButton.type = 'button';
-      editButton.className = 'icon-button edit-exercise';
-      editButton.textContent = '✏️';
-      editButton.setAttribute('aria-label', `Modifica ${exercise}`);
-      editButton.addEventListener('click', renderEdit);
-
-      const deleteButton = document.createElement('button');
-      deleteButton.type = 'button';
-      deleteButton.className = 'icon-button delete-exercise';
-      deleteButton.textContent = '🗑️';
-      deleteButton.setAttribute('aria-label', `Rimuovi ${exercise}`);
-      deleteButton.addEventListener('click', () => callExerciseAction('deleteExercise', { gruppoMuscolare: group, esercizio: exercise }));
-
-      actions.append(editButton, deleteButton);
       item.append(name, actions);
     };
 
@@ -521,29 +749,30 @@
       input.type = 'text';
       input.maxLength = 80;
       input.value = exercise;
+      input.setAttribute('aria-label', 'Nuovo nome per ' + exercise);
 
-      const actions = document.createElement('span');
-      actions.className = 'exercise-actions';
-
-      const saveButton = document.createElement('button');
-      saveButton.type = 'button';
-      saveButton.className = 'icon-button save-exercise';
-      saveButton.textContent = '✓';
-      saveButton.setAttribute('aria-label', `Salva ${exercise}`);
-      saveButton.addEventListener('click', () => {
+      const save = () => {
         const newName = input.value.trim();
         if (!newName || newName === exercise) { renderView(); return; }
-        callExerciseAction('renameExercise', { gruppoMuscolare: group, esercizio: exercise, nuovoEsercizio: newName });
+        catalogAction('renameExercise', {
+          gruppoMuscolare: groupName,
+          esercizio: exercise,
+          nuovoEsercizio: newName
+        });
+      };
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') renderView();
       });
 
-      const cancelButton = document.createElement('button');
-      cancelButton.type = 'button';
-      cancelButton.className = 'icon-button cancel-exercise';
-      cancelButton.textContent = '✕';
-      cancelButton.setAttribute('aria-label', 'Annulla modifica');
-      cancelButton.addEventListener('click', renderView);
+      const actions = document.createElement('span');
+      actions.className = 'row-actions';
+      actions.append(
+        iconButton('Salva ' + exercise, '✓', 'confirm', save),
+        iconButton('Annulla modifica', '✕', 'cancel', renderView)
+      );
 
-      actions.append(saveButton, cancelButton);
       item.append(input, actions);
       input.focus();
       input.select();
@@ -553,131 +782,250 @@
     return item;
   };
 
-  const renderAllGroups = () => {
-    exerciseGroups.innerHTML = '';
-    MUSCLE_GROUPS.forEach((group) => {
-      const section = document.createElement('section');
-      section.className = 'group-section';
+  const buildGroupCard = (group) => {
+    const card = document.createElement('section');
+    card.className = 'group-card';
 
+    const header = document.createElement('div');
+    header.className = 'group-header';
+
+    const renderHeaderView = () => {
+      header.innerHTML = '';
       const heading = document.createElement('h2');
-      heading.className = 'group-heading';
-      heading.textContent = group;
-      section.appendChild(heading);
+      heading.className = 'group-name';
+      heading.textContent = group.name;
 
-      const exercises = exercisesByGroup[group] || [];
-      if (exercises.length === 0) {
-        const empty = document.createElement('p');
-        empty.className = 'group-empty';
-        empty.textContent = 'Nessun esercizio';
-        section.appendChild(empty);
-      } else {
-        const list = document.createElement('ul');
-        list.className = 'exercise-list';
-        exercises.forEach((exercise) => list.appendChild(buildExerciseItem(group, exercise)));
-        section.appendChild(list);
-      }
+      const actions = document.createElement('span');
+      actions.className = 'row-actions';
+      actions.append(
+        iconButton('Rinomina il gruppo ' + group.name, '✏️', 'edit', renderHeaderEdit),
+        iconButton('Elimina il gruppo ' + group.name, '🗑️', 'danger', () => {
+          const extra = group.exercises.length
+            ? ' e i suoi ' + group.exercises.length + ' esercizi'
+            : '';
+          if (!window.confirm('Eliminare il gruppo "' + group.name + '"' + extra + '?')) return;
+          catalogAction('deleteGroup', { gruppoMuscolare: group.name });
+        })
+      );
 
-      exerciseGroups.appendChild(section);
+      header.append(heading, actions);
+    };
+
+    const renderHeaderEdit = () => {
+      header.innerHTML = '';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 80;
+      input.value = group.name;
+      input.setAttribute('aria-label', 'Nuovo nome per il gruppo ' + group.name);
+
+      const save = () => {
+        const newName = input.value.trim();
+        if (!newName || newName === group.name) { renderHeaderView(); return; }
+        catalogAction('renameGroup', { gruppoMuscolare: group.name, nuovoGruppo: newName });
+      };
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') renderHeaderView();
+      });
+
+      const actions = document.createElement('span');
+      actions.className = 'row-actions';
+      actions.append(
+        iconButton('Salva il gruppo', '✓', 'confirm', save),
+        iconButton('Annulla modifica', '✕', 'cancel', renderHeaderView)
+      );
+
+      header.append(input, actions);
+      input.focus();
+      input.select();
+    };
+
+    renderHeaderView();
+    card.appendChild(header);
+
+    if (group.exercises.length) {
+      const list = document.createElement('ul');
+      list.className = 'exercise-list';
+      group.exercises.forEach((exercise) => list.appendChild(buildExerciseItem(group.name, exercise)));
+      card.appendChild(list);
+    } else {
+      const empty = document.createElement('p');
+      empty.className = 'group-empty';
+      empty.textContent = 'Nessun esercizio';
+      card.appendChild(empty);
+    }
+
+    const addRow = document.createElement('div');
+    addRow.className = 'add-row';
+
+    const addInput = document.createElement('input');
+    addInput.type = 'text';
+    addInput.maxLength = 80;
+    addInput.placeholder = 'Nuovo esercizio';
+    addInput.setAttribute('aria-label', 'Nuovo esercizio per ' + group.name);
+
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.textContent = 'Aggiungi';
+
+    const submitExercise = async () => {
+      const exercise = addInput.value.trim();
+      if (!exercise) { addInput.focus(); return; }
+      addButton.disabled = true;
+      const ok = await catalogAction('saveExercise', { gruppoMuscolare: group.name, esercizio: exercise });
+      addButton.disabled = false;
+      if (!ok) addInput.value = exercise;
+    };
+
+    addInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submitExercise(); }
     });
+    addButton.addEventListener('click', submitExercise);
+
+    addRow.append(addInput, addButton);
+    card.appendChild(addRow);
+
+    return card;
   };
 
-  muscleGroupInput.addEventListener('change', updateExerciseOptions);
+  const renderManager = () => {
+    const scrollTop = screenExercises.scrollTop;
+    exerciseGroups.innerHTML = '';
 
-  renderAllGroups();
+    if (!catalog.groups.length) {
+      const empty = document.createElement('p');
+      empty.className = 'group-empty';
+      empty.textContent = catalogLoaded
+        ? 'Nessun gruppo. Aggiungine uno qui sopra: comparirà subito nel menu della schermata Allenamento.'
+        : 'Menu non ancora caricati da Google Sheets.';
+      exerciseGroups.appendChild(empty);
+      return;
+    }
 
-  addExerciseBtn.addEventListener('click', async () => {
-    const exercise = newExerciseInput.value.trim();
-    if (!exercise) return;
-    addExerciseBtn.disabled = true;
-    const success = await callExerciseAction('saveExercise', { gruppoMuscolare: newExerciseGroup.value, esercizio: exercise });
-    addExerciseBtn.disabled = false;
-    if (success) newExerciseInput.value = '';
+    catalog.groups.forEach((group) => exerciseGroups.appendChild(buildGroupCard(group)));
+    screenExercises.scrollTop = scrollTop;
+  };
+
+  const addGroup = async () => {
+    const name = newGroupInput.value.trim();
+    if (!name) { newGroupInput.focus(); return; }
+    addGroupBtn.disabled = true;
+    const ok = await catalogAction('saveGroup', { gruppoMuscolare: name });
+    addGroupBtn.disabled = false;
+    if (ok) newGroupInput.value = '';
+  };
+
+  addGroupBtn.addEventListener('click', addGroup);
+  newGroupInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addGroup(); }
   });
 
-  fetch(`${SCRIPT_URL}?action=listExercises`)
-    .then((response) => response.json())
-    .then((data) => {
-      if (data.result === 'success') setExercises(data.exercises);
-    })
-    .catch((error) => console.error('Catalogo esercizi non disponibile', error));
+  /* -------------------------------------------- configurazione endpoint */
 
-  resetDate();
+  endpointUrlInput.value = scriptUrl;
+
+  saveEndpointBtn.addEventListener('click', async () => {
+    const value = endpointUrlInput.value.trim();
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(value)) {
+      showStatus(endpointStatus, 'error', 'Serve un URL del tipo https://script.google.com/macros/s/.../exec', 6000);
+      return;
+    }
+
+    scriptUrl = value;
+    store.set(URL_KEY, value);
+    endpointUrlInput.value = value;
+    showStatus(endpointStatus, 'pending', 'Verifica in corso…', 0);
+
+    const ok = await loadCatalog({ silent: true });
+    showStatus(
+      endpointStatus,
+      ok ? 'success' : 'error',
+      ok ? 'Collegamento riuscito' : 'Collegamento salvato, ma la verifica è fallita',
+      6000
+    );
+  });
+
+  /* ---------------------------------------- prima schermata: salvataggio */
+
+  const getToday = () => {
+    const today = new Date();
+    const offset = today.getTimezoneOffset() * 60000;
+    return new Date(today.getTime() - offset).toISOString().slice(0, 10);
+  };
+
+  const resetDate = () => { dateInput.value = getToday(); };
+
+  muscleGroupInput.addEventListener('change', updateExerciseOptions);
+  retryCatalogBtn.addEventListener('click', () => loadCatalog());
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const data = dateInput.value;
-    const gruppoMuscolare = muscleGroupInput.value;
-    const esercizio = exerciseInput.value;
-    const ripetizioni = repetitionsInput.value;
-    const set = setsInput.value;
-    const peso = weightInput.value;
-    const mono = monoInput.checked;
-    const commento = commentInput.value.trim();
-    if (!data || !gruppoMuscolare || !esercizio || !ripetizioni || !set) return;
+    const payload = {
+      data: dateInput.value,
+      gruppoMuscolare: muscleGroupInput.value,
+      esercizio: exerciseInput.value,
+      ripetizioni: repetitionsInput.value,
+      set: setsInput.value,
+      peso: weightInput.value,
+      mono: monoInput.checked,
+      commento: commentInput.value.trim()
+    };
 
-    clearTimeout(statusTimer);
-    btn.disabled = true;
-    status.className = 'pending';
-    status.textContent = 'Invio in corso…';
+    if (!isConfigured()) {
+      showStatus(status, 'error', 'Configura l’URL del deploy nella schermata Esercizi', 6000);
+      return;
+    }
+
+    if (!payload.data) { showStatus(status, 'error', 'Scegli una data'); dateInput.focus(); return; }
+    if (!payload.gruppoMuscolare) { showStatus(status, 'error', 'Scegli un gruppo muscolare'); muscleGroupInput.focus(); return; }
+    if (!payload.esercizio) { showStatus(status, 'error', 'Scegli un esercizio'); exerciseInput.focus(); return; }
+    if (!payload.ripetizioni) { showStatus(status, 'error', 'Inserisci le ripetizioni'); repetitionsInput.focus(); return; }
+    if (!payload.set) { showStatus(status, 'error', 'Inserisci i set'); setsInput.focus(); return; }
+
+    submitBtn.disabled = true;
+    showStatus(status, 'pending', 'Invio in corso…', 0);
 
     try {
-      const res = await fetch(SCRIPT_URL, {
+      const data = await requestJson(scriptUrl, {
         method: 'POST',
         // text/plain evita la preflight CORS che Apps Script non gestisce
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ data, gruppoMuscolare, esercizio, ripetizioni, set, peso, mono, commento })
+        body: JSON.stringify(payload)
       });
 
-      const responseText = await res.text();
-      let responseData;
+      showStatus(status, 'success', data.message === 'Serie salvata' ? 'Salvato ✓' : data.message);
 
-      try {
-        responseData = JSON.parse(responseText);
-      } catch {
-        throw new Error(`Google Sheets ha restituito una risposta non valida (HTTP ${res.status})`);
-      }
-
-      if (!res.ok) {
-        throw new Error(responseData.message || `Google Sheets ha rifiutato la richiesta (HTTP ${res.status})`);
-      }
-
-      if (responseData.result === 'success') {
-        status.className = 'success';
-        status.textContent = 'Salvato ✓';
-        form.reset();
-        exerciseInput.innerHTML = '<option value="" selected disabled>Scegli prima un gruppo</option>';
-        exerciseInput.disabled = true;
-        resetDate();
-        exerciseInput.focus();
-      } else {
-        throw new Error(responseData.message || 'Google Sheets non ha confermato il salvataggio');
-      }
+      // Data e gruppo restano: di solito si registra un altro esercizio dello stesso gruppo.
+      exerciseInput.value = '';
+      updateExerciseOptions();
+      repetitionsInput.value = '';
+      setsInput.value = '';
+      weightInput.value = '';
+      monoInput.checked = false;
+      commentInput.value = '';
+      if (!exerciseInput.disabled) exerciseInput.focus();
     } catch (err) {
-      status.className = 'error';
-      status.textContent = err instanceof TypeError
-        ? 'Collegamento a Google Sheets non disponibile'
-        : err.message;
+      showStatus(status, 'error', err.message, 6000);
       console.error(err);
     } finally {
-      btn.disabled = false;
-      statusTimer = setTimeout(() => {
-        status.textContent = '';
-        status.className = '';
-      }, 3000);
+      submitBtn.disabled = false;
     }
   });
 
-  // Navigazione tra le due schermate: bottom nav e swipe orizzontale
-  const screens = document.getElementById('screens');
-  const screensViewport = document.getElementById('screensViewport');
+  /* ------------------------------------------------------- navigazione */
+
+  const screens = $('screens');
+  const screensViewport = $('screensViewport');
   const navButtons = document.querySelectorAll('.nav-btn');
   let currentScreen = 0;
 
   const setScreen = (index, animate = true) => {
     currentScreen = Math.max(0, Math.min(1, index));
     screens.style.transition = animate ? 'transform 0.3s ease' : 'none';
-    screens.style.transform = `translateX(${currentScreen * -50}%)`;
+    screens.style.transform = 'translateX(' + (currentScreen * -50) + '%)';
     navButtons.forEach((navBtn) => {
       const isActive = Number(navBtn.dataset.screen) === currentScreen;
       navBtn.classList.toggle('active', isActive);
@@ -689,7 +1037,7 @@
     navBtn.addEventListener('click', () => setScreen(Number(navBtn.dataset.screen)));
   });
 
-  const isInteractive = (el) => !!el.closest('input, select, textarea, button, label');
+  const isInteractive = (el) => !!(el && el.closest && el.closest('input, select, textarea, button, label, summary'));
 
   let pointerId = null;
   let startX = 0;
@@ -720,12 +1068,12 @@
 
     if (axisLocked !== 'x') return;
 
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     dragDeltaX = dx;
     const width = screensViewport.clientWidth || 1;
     const basePercent = currentScreen * -50;
     const nextPercent = Math.max(-50, Math.min(0, basePercent + (dragDeltaX / width) * 50));
-    screens.style.transform = `translateX(${nextPercent}%)`;
+    screens.style.transform = 'translateX(' + nextPercent + '%)';
   });
 
   const endDrag = (e) => {
@@ -745,11 +1093,35 @@
   screensViewport.addEventListener('pointerup', endDrag);
   screensViewport.addEventListener('pointercancel', endDrag);
 
+  /* ------------------------------------------------------------ avvio */
+
+  resetDate();
+
+  // I menu salvati in locale compaiono subito, anche offline o prima della rete.
+  const cached = store.get(CATALOG_KEY);
+  if (cached) {
+    try {
+      applyCatalog(JSON.parse(cached), { persist: false });
+    } catch (e) {
+      renderGroupSelect();
+      updateExerciseOptions();
+      renderManager();
+    }
+  } else {
+    renderGroupSelect();
+    updateExerciseOptions();
+    renderManager();
+  }
+
+  refreshNotice();
+  loadCatalog({ silent: true });
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').catch(console.error);
     });
   }
+})();
 </script>
 
 </body>
