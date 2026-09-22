@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - 'Code.gs'
+      - 'appsscript.json'
       - '.clasp.json'
       - '.claspignore'
       - '.github/workflows/deploy-appscript.yml'
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -22,8 +24,10 @@ jobs:
         with:
           node-version: '20'
 
+      # clasp 2.x e la versione che legge le credenziali da ~/.clasprc.json,
+      # il formato scritto dal passo successivo. La 3.x ne usa un altro.
       - name: Install clasp
-        run: npm install --save-dev @google/clasp
+        run: npm install --no-save @google/clasp@2.4.2
 
       - name: Write clasp credentials
         env:
@@ -31,25 +35,32 @@ jobs:
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
         run: |
           if [ -z "$CLASPRC_JSON" ]; then
-            echo "Missing CLASPRC_JSON secret"
+            echo "::error::Manca il secret CLASPRC_JSON: e il contenuto di ~/.clasprc.json dopo 'clasp login' sul tuo computer."
             exit 1
           fi
 
-          mkdir -p "$HOME"
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
 
           if [ -n "$SCRIPT_ID" ]; then
-            node - <<'NODE'
-const fs = require('fs');
-const path = '.clasp.json';
-const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
-cfg.scriptId = process.env.SCRIPT_ID;
-fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
-NODE
+            node -e 'const fs = require("fs"); const cfg = JSON.parse(fs.readFileSync(".clasp.json", "utf8")); cfg.scriptId = process.env.SCRIPT_ID; fs.writeFileSync(".clasp.json", JSON.stringify(cfg, null, 2) + "\n");'
+          elif grep -q 'YOUR_APPS_SCRIPT_ID' .clasp.json; then
+            echo "::error::Manca il secret SCRIPT_ID e .clasp.json contiene ancora il segnaposto. Copia l'ID da Apps Script (Impostazioni progetto)."
+            exit 1
           fi
-        shell: bash
 
       - name: Push to Google Apps Script
-        env:
-          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
         run: npx clasp push --force
+
+      # clasp push aggiorna solo il codice del progetto: l'URL /exec continua a
+      # servire l'ultima versione pubblicata. Con DEPLOYMENT_ID il workflow
+      # ripubblica quel deployment mantenendo lo stesso URL.
+      - name: Update the web app deployment
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            echo "::notice::DEPLOYMENT_ID non impostato: il codice e aggiornato ma l'URL /exec serve ancora la versione precedente. Aggiungi il secret, oppure ripubblica a mano da Apps Script."
+            exit 0
+          fi
+
+          npx clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "main@$(git rev-parse --short HEAD)"
