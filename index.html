@@ -297,6 +297,16 @@
   .settings summary::before { content: '⚙ '; }
   .settings p { color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
   .settings input { font-size: 0.85rem; }
+  .settings button.secondary {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--muted);
+  }
 
   /* Schermate affiancate, navigabili con swipe o bottom nav */
   .screens-viewport {
@@ -367,7 +377,7 @@
 
         <div class="notice" id="catalogNotice">
           <p id="catalogNoticeText"></p>
-          <button type="button" id="retryCatalogBtn">Riprova</button>
+          <button type="button" id="retryCatalogBtn">Configura</button>
         </div>
 
         <form id="logForm" novalidate>
@@ -422,7 +432,7 @@
       <section class="screen" id="screenExercises">
         <header>
           <h1>Esercizi</h1>
-          <p class="subtitle">Modifica i menu della schermata Allenamento</p>
+          <p class="subtitle">Modifica i menu a tendina della schermata Allenamento</p>
         </header>
 
         <div class="field add-row">
@@ -436,12 +446,15 @@
 
         <details class="settings">
           <summary>Collegamento a Google Sheets</summary>
-          <p>Incolla qui l'URL del deploy Apps Script (termina con <code>/exec</code>). Il deploy deve essere eseguito come te e accessibile a "Chiunque".</p>
+          <p>Incolla qui l'URL del deploy Apps Script (termina con <code>/exec</code>). Il deploy deve essere eseguito come te e accessibile a "Chiunque". Serve solo alla schermata Allenamento: i menu qui sotto funzionano anche senza.</p>
           <div class="add-row">
             <input type="url" id="endpointUrl" placeholder="https://script.google.com/macros/s/.../exec" aria-label="URL del deploy Apps Script" autocomplete="off" spellcheck="false">
             <button type="button" id="saveEndpointBtn">Salva</button>
           </div>
           <p id="endpointStatus" role="status" aria-live="polite"></p>
+
+          <p>I menu sono salvati su questo dispositivo. L'elenco di partenza si modifica in cima a <code>index.html</code>.</p>
+          <button type="button" id="resetCatalogBtn" class="secondary">Ripristina elenco predefinito</button>
         </details>
       </section>
 
@@ -462,12 +475,29 @@
 (() => {
   'use strict';
 
-  // URL del deploy di Google Apps Script (termina con /exec).
-  // Puo essere sostituito a runtime dalla sezione "Collegamento a Google Sheets".
-  const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwnGB1tYuHTDhFOWkRgH_1KOf090LG6k_0-RS2veVkWsAWBnc6ZXwkztfsV09syZFhRJA/exec';
+  /* ====================================================================
+     ELENCO DEI MENU DELLA PRIMA SCHERMATA
+     --------------------------------------------------------------------
+     Modifica qui i valori predefiniti: e l'unico posto da toccare.
+     Le modifiche fatte dalla schermata "Esercizi" restano sul dispositivo
+     e hanno la precedenza; "Ripristina elenco predefinito" torna a questo.
+     ==================================================================== */
+  const CATALOGO_PREDEFINITO = [
+    { gruppo: 'Spalle',  esercizi: ['Military press', 'Alzate laterali', 'Alzate frontali', 'Reverse fly'] },
+    { gruppo: 'Petto',   esercizi: ['Panca piana', 'Panca inclinata', 'Chest press', 'Croci'] },
+    { gruppo: 'Gambe',   esercizi: ['Squat', 'Leg press', 'Affondi', 'Leg extension', 'Leg curl'] },
+    { gruppo: 'Braccia', esercizi: ['Curl con bilanciere', 'Curl con manubri', 'Pushdown', 'French press'] },
+    { gruppo: 'Addome',  esercizi: ['Crunch', 'Plank', 'Leg raise', 'Ab wheel'] },
+    { gruppo: 'Dorso',   esercizi: ['Stacco da terra', 'Lat machine', 'Rematore', 'Pulley'] }
+  ];
 
-  const URL_KEY = 'allenamento:scriptUrl';
-  const CATALOG_KEY = 'allenamento:catalog';
+  // URL del deploy di Google Apps Script (termina con /exec).
+  // Puo essere sostituito dall'app nella sezione "Collegamento a Google Sheets".
+  const URL_PREDEFINITO = 'https://script.google.com/macros/s/AKfycbwnGB1tYuHTDhFOWkRgH_1KOf090LG6k_0-RS2veVkWsAWBnc6ZXwkztfsV09syZFhRJA/exec';
+
+  const CHIAVE_MENU = 'allenamento:menu';
+  const CHIAVE_URL = 'allenamento:scriptUrl';
+  const LUNGHEZZA_MAX = 80;
 
   const $ = (id) => document.getElementById(id);
 
@@ -496,469 +526,478 @@
   const endpointUrlInput = $('endpointUrl');
   const saveEndpointBtn = $('saveEndpointBtn');
   const endpointStatus = $('endpointStatus');
+  const resetCatalogBtn = $('resetCatalogBtn');
 
-  /* ------------------------------------------------ memoria locale (PWA) */
+  /* ------------------------------------------------- memoria del telefono */
 
   const store = {
     get(key) { try { return localStorage.getItem(key); } catch (e) { return null; } },
-    set(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* quota o modalita privata */ } }
+    set(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* modalita privata */ } }
   };
 
-  let scriptUrl = (store.get(URL_KEY) || DEFAULT_SCRIPT_URL).trim();
-  let catalog = { groups: [] };
-  let catalogLoaded = false;
+  /* ------------------------------------------------------------ stato UI */
 
-  /* ------------------------------------------------------------- stato UI */
-
-  const statusTimers = new WeakMap();
+  const timers = new WeakMap();
 
   const showStatus = (el, kind, message, timeout) => {
-    clearTimeout(statusTimers.get(el));
+    clearTimeout(timers.get(el));
     el.className = kind;
     el.textContent = message;
     if (timeout !== 0) {
-      statusTimers.set(el, setTimeout(() => {
+      timers.set(el, setTimeout(() => {
         el.textContent = '';
         el.className = '';
       }, timeout || 4000));
     }
   };
 
-  const showNotice = (message) => {
-    catalogNoticeText.textContent = message;
-    catalogNotice.classList.add('visible');
-  };
+  /* ------------------------------------------- il menu, tutto dentro l'app */
 
-  const hideNotice = () => catalogNotice.classList.remove('visible');
+  const copiaPredefinito = () => CATALOGO_PREDEFINITO.map((voce) => ({
+    gruppo: voce.gruppo,
+    esercizi: voce.esercizi.slice()
+  }));
 
-  /* ------------------------------------------------------- chiamate di rete */
+  // Ripulisce qualunque cosa arrivi dalla memoria locale: se e illeggibile o
+  // vuota si riparte dall'elenco predefinito scritto qui sopra.
+  const normalizza = (dati) => {
+    if (!Array.isArray(dati)) return null;
 
-  const isConfigured = () => /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(scriptUrl);
+    const gruppi = [];
+    dati.forEach((voce) => {
+      if (!voce || typeof voce.gruppo !== 'string') return;
+      const nome = voce.gruppo.trim();
+      if (!nome || gruppi.some((g) => g.gruppo === nome)) return;
 
-  const requestJson = async (url, options) => {
-    let response;
-    try {
-      response = await fetch(url, options);
-    } catch (e) {
-      throw new Error('Google Sheets non raggiungibile: controlla la connessione');
-    }
-
-    let text;
-    try {
-      text = await response.text();
-    } catch (e) {
-      throw new Error('Risposta interrotta da Google Sheets');
-    }
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      if (/accounts\.google\.com|ServiceLogin|Accedi con Google/i.test(text)) {
-        throw new Error('Il deploy Apps Script non è pubblico: impostalo su "Chiunque"');
-      }
-      throw new Error('Risposta non valida da Google Sheets (HTTP ' + response.status + '). Controlla il link del deploy.');
-    }
-
-    if (!response.ok || data.result !== 'success') {
-      throw new Error(data.message || 'Google Sheets ha rifiutato la richiesta (HTTP ' + response.status + ')');
-    }
-
-    return data;
-  };
-
-  /* ---------------------------------------------------------- catalogo menu */
-
-  // Accetta sia il formato nuovo {groups:[{name,exercises}]} sia il vecchio
-  // {Gruppo:[esercizi]}, cosi un deploy non ancora aggiornato resta leggibile.
-  const normalizeCatalog = (raw) => {
-    if (!raw || typeof raw !== 'object') return { groups: [] };
-
-    const source = Array.isArray(raw.groups)
-      ? raw.groups
-      : Object.keys(raw).map((name) => ({ name, exercises: raw[name] }));
-
-    const groups = [];
-    source.forEach((group) => {
-      if (!group || typeof group.name !== 'string') return;
-      const name = group.name.trim();
-      if (!name || groups.some((g) => g.name === name)) return;
-
-      const exercises = Array.isArray(group.exercises)
-        ? group.exercises
-            .map((exercise) => (typeof exercise === 'string' ? exercise.trim() : ''))
-            .filter((exercise, index, list) => exercise && list.indexOf(exercise) === index)
+      const esercizi = Array.isArray(voce.esercizi)
+        ? voce.esercizi
+            .map((e) => (typeof e === 'string' ? e.trim() : ''))
+            .filter((e, i, lista) => e && lista.indexOf(e) === i)
         : [];
 
-      groups.push({ name, exercises });
+      gruppi.push({ gruppo: nome, esercizi });
     });
 
-    return { groups };
+    return gruppi.length ? gruppi : null;
   };
 
-  const findGroup = (name) => catalog.groups.filter((group) => group.name === name)[0] || null;
-
-  const applyCatalog = (raw, options) => {
-    catalog = normalizeCatalog(raw);
-    catalogLoaded = true;
-    if (!options || options.persist !== false) {
-      store.set(CATALOG_KEY, JSON.stringify(catalog));
-    }
-    renderGroupSelect();
-    updateExerciseOptions();
-    renderManager();
-    refreshNotice();
-  };
-
-  const refreshNotice = () => {
-    if (!isConfigured()) {
-      showNotice('Collegamento a Google Sheets non configurato: apri la schermata Esercizi e incolla l’URL del deploy.');
-      return;
-    }
-    if (!catalog.groups.length) {
-      showNotice(catalogLoaded
-        ? 'Nessun gruppo nel catalogo: creane uno dalla schermata Esercizi.'
-        : 'Menu non caricati da Google Sheets.');
-      return;
-    }
-    hideNotice();
-  };
-
-  const loadCatalog = async (options) => {
-    const silent = options && options.silent;
-    if (!isConfigured()) {
-      refreshNotice();
-      return false;
-    }
-    if (!silent) showStatus(exerciseStatus, 'pending', 'Caricamento menu…', 0);
+  let menu = (() => {
+    const salvato = store.get(CHIAVE_MENU);
+    if (!salvato) return copiaPredefinito();
     try {
-      const data = await requestJson(scriptUrl + '?action=listExercises', { method: 'GET' });
-      applyCatalog(data.catalog || data.exercises);
-      if (!silent) showStatus(exerciseStatus, 'success', 'Menu aggiornati');
-      return true;
-    } catch (err) {
-      showNotice(err.message);
-      if (!silent) showStatus(exerciseStatus, 'error', err.message, 6000);
-      return false;
+      return normalizza(JSON.parse(salvato)) || copiaPredefinito();
+    } catch (e) {
+      return copiaPredefinito();
     }
+  })();
+
+  const trovaGruppo = (nome) => menu.filter((voce) => voce.gruppo === nome)[0] || null;
+  const uguali = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+  // Il "filtro" dei nomi vive qui, nell'app: un solo punto da cambiare.
+  const controllaNome = (nome, etichetta) => {
+    const pulito = nome.trim();
+    if (!pulito) return { errore: etichetta + ' non puo essere vuoto' };
+    if (pulito.length > LUNGHEZZA_MAX) return { errore: etichetta + ' supera i ' + LUNGHEZZA_MAX + ' caratteri' };
+    return { valore: pulito };
   };
 
-  const catalogAction = async (action, payload) => {
-    if (!isConfigured()) {
-      showStatus(exerciseStatus, 'error', 'Configura prima l’URL del deploy Apps Script', 6000);
-      return false;
-    }
-
-    showStatus(exerciseStatus, 'pending', 'Aggiornamento in corso…', 0);
-    try {
-      const data = await requestJson(scriptUrl, {
-        method: 'POST',
-        // text/plain evita la preflight CORS che Apps Script non gestisce
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(Object.assign({ action }, payload))
-      });
-      applyCatalog(data.catalog || data.exercises);
-      showStatus(exerciseStatus, 'success', data.message || 'Aggiornato');
-      return true;
-    } catch (err) {
-      showStatus(exerciseStatus, 'error', err.message, 6000);
-      return false;
-    }
+  // selGruppo/selEsercizio: cosa deve restare scelto nella prima schermata dopo
+  // il ridisegno. Omessi, si conserva la scelta attuale.
+  const salvaMenu = (messaggio, selGruppo, selEsercizio) => {
+    store.set(CHIAVE_MENU, JSON.stringify(menu));
+    disegnaTutto(selGruppo, selEsercizio);
+    if (messaggio) showStatus(exerciseStatus, 'success', messaggio);
   };
 
-  /* ------------------------------------------- menu della prima schermata */
+  /* ------------------------- operazioni sul menu (istantanee, senza rete) */
 
-  const fillSelect = (select, values, placeholderText, selected) => {
+  const aggiungiGruppo = (nome) => {
+    const check = controllaNome(nome, 'Il nome del gruppo');
+    if (check.errore) return showStatus(exerciseStatus, 'error', check.errore), false;
+    if (menu.some((voce) => uguali(voce.gruppo, check.valore))) {
+      return showStatus(exerciseStatus, 'error', 'Questo gruppo esiste gia'), false;
+    }
+    menu.push({ gruppo: check.valore, esercizi: [] });
+    salvaMenu('Gruppo aggiunto');
+    return true;
+  };
+
+  const rinominaGruppo = (vecchio, nuovo) => {
+    const check = controllaNome(nuovo, 'Il nome del gruppo');
+    if (check.errore) return showStatus(exerciseStatus, 'error', check.errore), false;
+    if (menu.some((voce) => voce.gruppo !== vecchio && uguali(voce.gruppo, check.valore))) {
+      return showStatus(exerciseStatus, 'error', 'Esiste gia un gruppo con questo nome'), false;
+    }
+    const gruppo = trovaGruppo(vecchio);
+    if (!gruppo) return false;
+
+    // La prima schermata non deve perdere la selezione durante una rinomina.
+    const eraScelto = muscleGroupInput.value === vecchio;
+    const esercizioScelto = exerciseInput.value;
+
+    gruppo.gruppo = check.valore;
+    salvaMenu('Gruppo rinominato', eraScelto ? check.valore : undefined, eraScelto ? esercizioScelto : undefined);
+    return true;
+  };
+
+  const eliminaGruppo = (nome) => {
+    menu = menu.filter((voce) => voce.gruppo !== nome);
+    salvaMenu('Gruppo rimosso');
+  };
+
+  const aggiungiEsercizio = (nomeGruppo, esercizio) => {
+    const check = controllaNome(esercizio, "Il nome dell'esercizio");
+    if (check.errore) return showStatus(exerciseStatus, 'error', check.errore), false;
+    const gruppo = trovaGruppo(nomeGruppo);
+    if (!gruppo) return false;
+    if (gruppo.esercizi.some((e) => uguali(e, check.valore))) {
+      return showStatus(exerciseStatus, 'error', 'Questo esercizio esiste gia nel gruppo'), false;
+    }
+    gruppo.esercizi.push(check.valore);
+    salvaMenu('Esercizio aggiunto');
+    return true;
+  };
+
+  const rinominaEsercizio = (nomeGruppo, vecchio, nuovo) => {
+    const check = controllaNome(nuovo, "Il nome dell'esercizio");
+    if (check.errore) return showStatus(exerciseStatus, 'error', check.errore), false;
+    const gruppo = trovaGruppo(nomeGruppo);
+    if (!gruppo) return false;
+    if (gruppo.esercizi.some((e) => e !== vecchio && uguali(e, check.valore))) {
+      return showStatus(exerciseStatus, 'error', 'Esiste gia un esercizio con questo nome nel gruppo'), false;
+    }
+    const posizione = gruppo.esercizi.indexOf(vecchio);
+    if (posizione === -1) return false;
+
+    const eraScelto = muscleGroupInput.value === nomeGruppo && exerciseInput.value === vecchio;
+
+    gruppo.esercizi[posizione] = check.valore;
+    salvaMenu('Esercizio rinominato', undefined, eraScelto ? check.valore : undefined);
+    return true;
+  };
+
+  const eliminaEsercizio = (nomeGruppo, esercizio) => {
+    const gruppo = trovaGruppo(nomeGruppo);
+    if (!gruppo) return;
+    gruppo.esercizi = gruppo.esercizi.filter((e) => e !== esercizio);
+    salvaMenu('Esercizio rimosso');
+  };
+
+  /* -------------------------------------- menu a tendina (prima schermata) */
+
+  const riempiSelect = (select, valori, testoSegnaposto, selezionato) => {
     select.innerHTML = '';
 
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.disabled = true;
-    placeholder.textContent = placeholderText;
-    select.appendChild(placeholder);
+    const segnaposto = document.createElement('option');
+    segnaposto.value = '';
+    segnaposto.disabled = true;
+    segnaposto.textContent = testoSegnaposto;
+    select.appendChild(segnaposto);
 
-    values.forEach((value) => {
+    valori.forEach((valore) => {
       const option = document.createElement('option');
-      option.value = value;
-      option.textContent = value;
+      option.value = valore;
+      option.textContent = valore;
       select.appendChild(option);
     });
 
-    if (selected && values.indexOf(selected) !== -1) select.value = selected;
-    else placeholder.selected = true;
+    if (selezionato && valori.indexOf(selezionato) !== -1) select.value = selezionato;
+    else segnaposto.selected = true;
 
-    select.disabled = values.length === 0;
+    select.disabled = valori.length === 0;
   };
 
-  const renderGroupSelect = () => {
-    const names = catalog.groups.map((group) => group.name);
-    fillSelect(
+  const disegnaMenuGruppi = (selezione) => {
+    const nomi = menu.map((voce) => voce.gruppo);
+    riempiSelect(
       muscleGroupInput,
-      names,
-      names.length ? 'Scegli un gruppo' : 'Nessun gruppo: creane uno in Esercizi',
-      muscleGroupInput.value
+      nomi,
+      nomi.length ? 'Scegli un gruppo' : 'Nessun gruppo: creane uno in Esercizi',
+      selezione === undefined ? muscleGroupInput.value : selezione
     );
   };
 
-  const updateExerciseOptions = () => {
-    const group = findGroup(muscleGroupInput.value);
-    const exercises = group ? group.exercises : [];
-    const placeholder = !muscleGroupInput.value
+  const disegnaMenuEsercizi = (selezione) => {
+    const gruppo = trovaGruppo(muscleGroupInput.value);
+    const esercizi = gruppo ? gruppo.esercizi : [];
+    const segnaposto = !muscleGroupInput.value
       ? 'Scegli prima un gruppo'
-      : (exercises.length ? 'Scegli un esercizio' : 'Nessun esercizio in questo gruppo');
+      : (esercizi.length ? 'Scegli un esercizio' : 'Nessun esercizio in questo gruppo');
 
-    fillSelect(exerciseInput, exercises, placeholder, exerciseInput.value);
+    riempiSelect(exerciseInput, esercizi, segnaposto, selezione === undefined ? exerciseInput.value : selezione);
   };
 
-  /* --------------------------------------- seconda schermata: editor menu */
+  /* ----------------------------- editor del menu (seconda schermata) */
 
-  const iconButton = (label, glyph, className, onClick) => {
+  const bottoneIcona = (etichetta, simbolo, classe, azione) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'icon-button ' + className;
-    button.textContent = glyph;
-    button.setAttribute('aria-label', label);
-    button.addEventListener('click', onClick);
+    button.className = 'icon-button ' + classe;
+    button.textContent = simbolo;
+    button.setAttribute('aria-label', etichetta);
+    button.addEventListener('click', azione);
     return button;
   };
 
-  const buildExerciseItem = (groupName, exercise) => {
+  const rigaEsercizio = (nomeGruppo, esercizio) => {
     const item = document.createElement('li');
 
-    const renderView = () => {
+    const vista = () => {
       item.innerHTML = '';
-      const name = document.createElement('span');
-      name.className = 'exercise-name';
-      name.textContent = exercise;
+      const nome = document.createElement('span');
+      nome.className = 'exercise-name';
+      nome.textContent = esercizio;
 
-      const actions = document.createElement('span');
-      actions.className = 'row-actions';
-      actions.append(
-        iconButton('Rinomina ' + exercise, '✏️', 'edit', renderEdit),
-        iconButton('Elimina ' + exercise, '🗑️', 'danger', () => {
-          catalogAction('deleteExercise', { gruppoMuscolare: groupName, esercizio: exercise });
-        })
+      const azioni = document.createElement('span');
+      azioni.className = 'row-actions';
+      azioni.append(
+        bottoneIcona('Rinomina ' + esercizio, '✏️', 'edit', modifica),
+        bottoneIcona('Elimina ' + esercizio, '🗑️', 'danger', () => eliminaEsercizio(nomeGruppo, esercizio))
       );
 
-      item.append(name, actions);
+      item.append(nome, azioni);
     };
 
-    const renderEdit = () => {
+    const modifica = () => {
       item.innerHTML = '';
       const input = document.createElement('input');
       input.type = 'text';
-      input.maxLength = 80;
-      input.value = exercise;
-      input.setAttribute('aria-label', 'Nuovo nome per ' + exercise);
+      input.maxLength = LUNGHEZZA_MAX;
+      input.value = esercizio;
+      input.setAttribute('aria-label', 'Nuovo nome per ' + esercizio);
 
-      const save = () => {
-        const newName = input.value.trim();
-        if (!newName || newName === exercise) { renderView(); return; }
-        catalogAction('renameExercise', {
-          gruppoMuscolare: groupName,
-          esercizio: exercise,
-          nuovoEsercizio: newName
-        });
+      const conferma = () => {
+        const nuovo = input.value.trim();
+        if (!nuovo || nuovo === esercizio) { vista(); return; }
+        if (!rinominaEsercizio(nomeGruppo, esercizio, nuovo)) input.focus();
       };
 
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); save(); }
-        if (e.key === 'Escape') renderView();
+        if (e.key === 'Enter') { e.preventDefault(); conferma(); }
+        if (e.key === 'Escape') vista();
       });
 
-      const actions = document.createElement('span');
-      actions.className = 'row-actions';
-      actions.append(
-        iconButton('Salva ' + exercise, '✓', 'confirm', save),
-        iconButton('Annulla modifica', '✕', 'cancel', renderView)
+      const azioni = document.createElement('span');
+      azioni.className = 'row-actions';
+      azioni.append(
+        bottoneIcona('Salva ' + esercizio, '✓', 'confirm', conferma),
+        bottoneIcona('Annulla modifica', '✕', 'cancel', vista)
       );
 
-      item.append(input, actions);
+      item.append(input, azioni);
       input.focus();
       input.select();
     };
 
-    renderView();
+    vista();
     return item;
   };
 
-  const buildGroupCard = (group) => {
+  const cardGruppo = (voce) => {
     const card = document.createElement('section');
     card.className = 'group-card';
 
     const header = document.createElement('div');
     header.className = 'group-header';
 
-    const renderHeaderView = () => {
+    const vista = () => {
       header.innerHTML = '';
-      const heading = document.createElement('h2');
-      heading.className = 'group-name';
-      heading.textContent = group.name;
+      const titolo = document.createElement('h2');
+      titolo.className = 'group-name';
+      titolo.textContent = voce.gruppo;
 
-      const actions = document.createElement('span');
-      actions.className = 'row-actions';
-      actions.append(
-        iconButton('Rinomina il gruppo ' + group.name, '✏️', 'edit', renderHeaderEdit),
-        iconButton('Elimina il gruppo ' + group.name, '🗑️', 'danger', () => {
-          const extra = group.exercises.length
-            ? ' e i suoi ' + group.exercises.length + ' esercizi'
-            : '';
-          if (!window.confirm('Eliminare il gruppo "' + group.name + '"' + extra + '?')) return;
-          catalogAction('deleteGroup', { gruppoMuscolare: group.name });
+      const azioni = document.createElement('span');
+      azioni.className = 'row-actions';
+      azioni.append(
+        bottoneIcona('Rinomina il gruppo ' + voce.gruppo, '✏️', 'edit', modifica),
+        bottoneIcona('Elimina il gruppo ' + voce.gruppo, '🗑️', 'danger', () => {
+          const extra = voce.esercizi.length ? ' e i suoi ' + voce.esercizi.length + ' esercizi' : '';
+          if (!window.confirm('Eliminare il gruppo "' + voce.gruppo + '"' + extra + '?')) return;
+          eliminaGruppo(voce.gruppo);
         })
       );
 
-      header.append(heading, actions);
+      header.append(titolo, azioni);
     };
 
-    const renderHeaderEdit = () => {
+    const modifica = () => {
       header.innerHTML = '';
       const input = document.createElement('input');
       input.type = 'text';
-      input.maxLength = 80;
-      input.value = group.name;
-      input.setAttribute('aria-label', 'Nuovo nome per il gruppo ' + group.name);
+      input.maxLength = LUNGHEZZA_MAX;
+      input.value = voce.gruppo;
+      input.setAttribute('aria-label', 'Nuovo nome per il gruppo ' + voce.gruppo);
 
-      const save = () => {
-        const newName = input.value.trim();
-        if (!newName || newName === group.name) { renderHeaderView(); return; }
-        catalogAction('renameGroup', { gruppoMuscolare: group.name, nuovoGruppo: newName });
+      const conferma = () => {
+        const nuovo = input.value.trim();
+        if (!nuovo || nuovo === voce.gruppo) { vista(); return; }
+        if (!rinominaGruppo(voce.gruppo, nuovo)) input.focus();
       };
 
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); save(); }
-        if (e.key === 'Escape') renderHeaderView();
+        if (e.key === 'Enter') { e.preventDefault(); conferma(); }
+        if (e.key === 'Escape') vista();
       });
 
-      const actions = document.createElement('span');
-      actions.className = 'row-actions';
-      actions.append(
-        iconButton('Salva il gruppo', '✓', 'confirm', save),
-        iconButton('Annulla modifica', '✕', 'cancel', renderHeaderView)
+      const azioni = document.createElement('span');
+      azioni.className = 'row-actions';
+      azioni.append(
+        bottoneIcona('Salva il gruppo', '✓', 'confirm', conferma),
+        bottoneIcona('Annulla modifica', '✕', 'cancel', vista)
       );
 
-      header.append(input, actions);
+      header.append(input, azioni);
       input.focus();
       input.select();
     };
 
-    renderHeaderView();
+    vista();
     card.appendChild(header);
 
-    if (group.exercises.length) {
-      const list = document.createElement('ul');
-      list.className = 'exercise-list';
-      group.exercises.forEach((exercise) => list.appendChild(buildExerciseItem(group.name, exercise)));
-      card.appendChild(list);
+    if (voce.esercizi.length) {
+      const lista = document.createElement('ul');
+      lista.className = 'exercise-list';
+      voce.esercizi.forEach((esercizio) => lista.appendChild(rigaEsercizio(voce.gruppo, esercizio)));
+      card.appendChild(lista);
     } else {
-      const empty = document.createElement('p');
-      empty.className = 'group-empty';
-      empty.textContent = 'Nessun esercizio';
-      card.appendChild(empty);
+      const vuoto = document.createElement('p');
+      vuoto.className = 'group-empty';
+      vuoto.textContent = 'Nessun esercizio';
+      card.appendChild(vuoto);
     }
 
-    const addRow = document.createElement('div');
-    addRow.className = 'add-row';
+    const riga = document.createElement('div');
+    riga.className = 'add-row';
 
-    const addInput = document.createElement('input');
-    addInput.type = 'text';
-    addInput.maxLength = 80;
-    addInput.placeholder = 'Nuovo esercizio';
-    addInput.setAttribute('aria-label', 'Nuovo esercizio per ' + group.name);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = LUNGHEZZA_MAX;
+    input.placeholder = 'Nuovo esercizio';
+    input.setAttribute('aria-label', 'Nuovo esercizio per ' + voce.gruppo);
 
-    const addButton = document.createElement('button');
-    addButton.type = 'button';
-    addButton.textContent = 'Aggiungi';
+    const bottone = document.createElement('button');
+    bottone.type = 'button';
+    bottone.textContent = 'Aggiungi';
 
-    const submitExercise = async () => {
-      const exercise = addInput.value.trim();
-      if (!exercise) { addInput.focus(); return; }
-      addButton.disabled = true;
-      const ok = await catalogAction('saveExercise', { gruppoMuscolare: group.name, esercizio: exercise });
-      addButton.disabled = false;
-      if (!ok) addInput.value = exercise;
+    const conferma = () => {
+      const nome = input.value.trim();
+      if (!nome) { input.focus(); return; }
+      if (!aggiungiEsercizio(voce.gruppo, nome)) input.focus();
     };
 
-    addInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); submitExercise(); }
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); conferma(); }
     });
-    addButton.addEventListener('click', submitExercise);
+    bottone.addEventListener('click', conferma);
 
-    addRow.append(addInput, addButton);
-    card.appendChild(addRow);
+    riga.append(input, bottone);
+    card.appendChild(riga);
 
     return card;
   };
 
-  const renderManager = () => {
-    const scrollTop = screenExercises.scrollTop;
+  const disegnaEditor = () => {
+    const scroll = screenExercises.scrollTop;
     exerciseGroups.innerHTML = '';
 
-    if (!catalog.groups.length) {
-      const empty = document.createElement('p');
-      empty.className = 'group-empty';
-      empty.textContent = catalogLoaded
-        ? 'Nessun gruppo. Aggiungine uno qui sopra: comparirà subito nel menu della schermata Allenamento.'
-        : 'Menu non ancora caricati da Google Sheets.';
-      exerciseGroups.appendChild(empty);
+    if (!menu.length) {
+      const vuoto = document.createElement('p');
+      vuoto.className = 'group-empty';
+      vuoto.textContent = 'Nessun gruppo. Aggiungine uno qui sopra: comparirà subito nel menu della schermata Allenamento.';
+      exerciseGroups.appendChild(vuoto);
       return;
     }
 
-    catalog.groups.forEach((group) => exerciseGroups.appendChild(buildGroupCard(group)));
-    screenExercises.scrollTop = scrollTop;
+    menu.forEach((voce) => exerciseGroups.appendChild(cardGruppo(voce)));
+    screenExercises.scrollTop = scroll;
   };
 
-  const addGroup = async () => {
-    const name = newGroupInput.value.trim();
-    if (!name) { newGroupInput.focus(); return; }
-    addGroupBtn.disabled = true;
-    const ok = await catalogAction('saveGroup', { gruppoMuscolare: name });
-    addGroupBtn.disabled = false;
-    if (ok) newGroupInput.value = '';
+  const aggiornaAvviso = () => {
+    if (!urlValido(scriptUrl)) {
+      catalogNoticeText.textContent = 'Collegamento a Google Sheets non configurato: apri la schermata Esercizi e incolla l’URL del deploy.';
+      catalogNotice.classList.add('visible');
+      return;
+    }
+    catalogNotice.classList.remove('visible');
   };
 
-  addGroupBtn.addEventListener('click', addGroup);
+  const disegnaTutto = (selGruppo, selEsercizio) => {
+    disegnaMenuGruppi(selGruppo);
+    disegnaMenuEsercizi(selEsercizio);
+    disegnaEditor();
+    aggiornaAvviso();
+  };
+
+  addGroupBtn.addEventListener('click', () => {
+    if (aggiungiGruppo(newGroupInput.value)) newGroupInput.value = '';
+    else newGroupInput.focus();
+  });
+
   newGroupInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); addGroup(); }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (aggiungiGruppo(newGroupInput.value)) newGroupInput.value = '';
   });
 
-  /* -------------------------------------------- configurazione endpoint */
+  resetCatalogBtn.addEventListener('click', () => {
+    if (!window.confirm('Riportare i menu all’elenco predefinito? Le modifiche fatte qui andranno perse.')) return;
+    menu = copiaPredefinito();
+    salvaMenu('Elenco predefinito ripristinato');
+  });
 
-  endpointUrlInput.value = scriptUrl;
+  /* ------------------------------ prima schermata: invio a Google Sheets */
 
-  saveEndpointBtn.addEventListener('click', async () => {
-    const value = endpointUrlInput.value.trim();
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(value)) {
-      showStatus(endpointStatus, 'error', 'Serve un URL del tipo https://script.google.com/macros/s/.../exec', 6000);
-      return;
+  let scriptUrl = (store.get(CHIAVE_URL) || URL_PREDEFINITO).trim();
+
+  function urlValido(valore) {
+    return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(valore);
+  }
+
+  const inviaAFogli = async (payload) => {
+    let response;
+    try {
+      response = await fetch(scriptUrl, {
+        method: 'POST',
+        // text/plain evita la preflight CORS che Apps Script non gestisce
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      throw new Error('Google Sheets non raggiungibile: controlla la connessione');
     }
 
-    scriptUrl = value;
-    store.set(URL_KEY, value);
-    endpointUrlInput.value = value;
-    showStatus(endpointStatus, 'pending', 'Verifica in corso…', 0);
+    let testo;
+    try {
+      testo = await response.text();
+    } catch (e) {
+      throw new Error('Risposta interrotta da Google Sheets');
+    }
 
-    const ok = await loadCatalog({ silent: true });
-    showStatus(
-      endpointStatus,
-      ok ? 'success' : 'error',
-      ok ? 'Collegamento riuscito' : 'Collegamento salvato, ma la verifica è fallita',
-      6000
-    );
-  });
+    let dati;
+    try {
+      dati = JSON.parse(testo);
+    } catch (e) {
+      if (/accounts\.google\.com|ServiceLogin|Accedi con Google/i.test(testo)) {
+        throw new Error('Il deploy Apps Script non è pubblico: impostalo su "Chiunque"');
+      }
+      throw new Error('Risposta non valida da Google Sheets (HTTP ' + response.status + '). Controlla il link del deploy.');
+    }
 
-  /* ---------------------------------------- prima schermata: salvataggio */
+    if (!response.ok || dati.result !== 'success') {
+      throw new Error(dati.message || 'Google Sheets ha rifiutato la richiesta (HTTP ' + response.status + ')');
+    }
 
-  const getToday = () => {
-    const today = new Date();
-    const offset = today.getTimezoneOffset() * 60000;
-    return new Date(today.getTime() - offset).toISOString().slice(0, 10);
+    return dati;
   };
 
-  const resetDate = () => { dateInput.value = getToday(); };
+  const oggi = () => {
+    const adesso = new Date();
+    const scarto = adesso.getTimezoneOffset() * 60000;
+    return new Date(adesso.getTime() - scarto).toISOString().slice(0, 10);
+  };
 
-  muscleGroupInput.addEventListener('change', updateExerciseOptions);
-  retryCatalogBtn.addEventListener('click', () => loadCatalog());
+  muscleGroupInput.addEventListener('change', () => disegnaMenuEsercizi(''));
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -974,33 +1013,27 @@
       commento: commentInput.value.trim()
     };
 
-    if (!isConfigured()) {
+    // Tutti i controlli stanno qui, nell'app: Apps Script scrive e basta.
+    if (!urlValido(scriptUrl)) {
       showStatus(status, 'error', 'Configura l’URL del deploy nella schermata Esercizi', 6000);
       return;
     }
-
     if (!payload.data) { showStatus(status, 'error', 'Scegli una data'); dateInput.focus(); return; }
     if (!payload.gruppoMuscolare) { showStatus(status, 'error', 'Scegli un gruppo muscolare'); muscleGroupInput.focus(); return; }
     if (!payload.esercizio) { showStatus(status, 'error', 'Scegli un esercizio'); exerciseInput.focus(); return; }
-    if (!payload.ripetizioni) { showStatus(status, 'error', 'Inserisci le ripetizioni'); repetitionsInput.focus(); return; }
-    if (!payload.set) { showStatus(status, 'error', 'Inserisci i set'); setsInput.focus(); return; }
+    if (!(Number(payload.ripetizioni) >= 1)) { showStatus(status, 'error', 'Le ripetizioni devono essere almeno 1'); repetitionsInput.focus(); return; }
+    if (!(Number(payload.set) >= 1)) { showStatus(status, 'error', 'I set devono essere almeno 1'); setsInput.focus(); return; }
+    if (payload.peso !== '' && !(Number(payload.peso) >= 0)) { showStatus(status, 'error', 'Il peso non può essere negativo'); weightInput.focus(); return; }
 
     submitBtn.disabled = true;
     showStatus(status, 'pending', 'Invio in corso…', 0);
 
     try {
-      const data = await requestJson(scriptUrl, {
-        method: 'POST',
-        // text/plain evita la preflight CORS che Apps Script non gestisce
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
+      await inviaAFogli(payload);
+      showStatus(status, 'success', 'Salvato ✓');
 
-      showStatus(status, 'success', data.message === 'Serie salvata' ? 'Salvato ✓' : data.message);
-
-      // Data e gruppo restano: di solito si registra un altro esercizio dello stesso gruppo.
-      exerciseInput.value = '';
-      updateExerciseOptions();
+      // Data e gruppo restano: di solito segue un altro esercizio dello stesso gruppo.
+      disegnaMenuEsercizi('');
       repetitionsInput.value = '';
       setsInput.value = '';
       weightInput.value = '';
@@ -1012,6 +1045,33 @@
       console.error(err);
     } finally {
       submitBtn.disabled = false;
+    }
+  });
+
+  /* ------------------------------------------- collegamento configurabile */
+
+  endpointUrlInput.value = scriptUrl;
+
+  saveEndpointBtn.addEventListener('click', async () => {
+    const valore = endpointUrlInput.value.trim();
+    if (!urlValido(valore)) {
+      showStatus(endpointStatus, 'error', 'Serve un URL del tipo https://script.google.com/macros/s/.../exec', 6000);
+      return;
+    }
+
+    scriptUrl = valore;
+    store.set(CHIAVE_URL, valore);
+    endpointUrlInput.value = valore;
+    aggiornaAvviso();
+    showStatus(endpointStatus, 'pending', 'Verifica in corso…', 0);
+
+    try {
+      const risposta = await fetch(scriptUrl, { method: 'GET' });
+      const testo = await risposta.text();
+      JSON.parse(testo);
+      showStatus(endpointStatus, 'success', 'Collegamento riuscito', 6000);
+    } catch (err) {
+      showStatus(endpointStatus, 'error', 'Salvato, ma la verifica non è riuscita', 6000);
     }
   });
 
@@ -1027,9 +1087,9 @@
     screens.style.transition = animate ? 'transform 0.3s ease' : 'none';
     screens.style.transform = 'translateX(' + (currentScreen * -50) + '%)';
     navButtons.forEach((navBtn) => {
-      const isActive = Number(navBtn.dataset.screen) === currentScreen;
-      navBtn.classList.toggle('active', isActive);
-      navBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+      const attivo = Number(navBtn.dataset.screen) === currentScreen;
+      navBtn.classList.toggle('active', attivo);
+      navBtn.setAttribute('aria-current', attivo ? 'page' : 'false');
     });
   };
 
@@ -1037,7 +1097,7 @@
     navBtn.addEventListener('click', () => setScreen(Number(navBtn.dataset.screen)));
   });
 
-  const isInteractive = (el) => !!(el && el.closest && el.closest('input, select, textarea, button, label, summary'));
+  const interattivo = (el) => !!(el && el.closest && el.closest('input, select, textarea, button, label, summary'));
 
   let pointerId = null;
   let startX = 0;
@@ -1046,7 +1106,7 @@
   let axisLocked = null;
 
   screensViewport.addEventListener('pointerdown', (e) => {
-    if (isInteractive(e.target)) return;
+    if (interattivo(e.target)) return;
     pointerId = e.pointerId;
     startX = e.clientX;
     startY = e.clientY;
@@ -1070,51 +1130,40 @@
 
     if (e.cancelable) e.preventDefault();
     dragDeltaX = dx;
-    const width = screensViewport.clientWidth || 1;
-    const basePercent = currentScreen * -50;
-    const nextPercent = Math.max(-50, Math.min(0, basePercent + (dragDeltaX / width) * 50));
-    screens.style.transform = 'translateX(' + nextPercent + '%)';
+    const larghezza = screensViewport.clientWidth || 1;
+    const base = currentScreen * -50;
+    const prossimo = Math.max(-50, Math.min(0, base + (dragDeltaX / larghezza) * 50));
+    screens.style.transform = 'translateX(' + prossimo + '%)';
   });
 
-  const endDrag = (e) => {
+  const fineTrascinamento = (e) => {
     if (pointerId === null || (e && e.pointerId !== pointerId)) return;
     pointerId = null;
     if (axisLocked === 'x') {
-      const width = screensViewport.clientWidth || 1;
-      const threshold = width * 0.2;
-      if (dragDeltaX < -threshold) setScreen(1);
-      else if (dragDeltaX > threshold) setScreen(0);
+      const soglia = (screensViewport.clientWidth || 1) * 0.2;
+      if (dragDeltaX < -soglia) setScreen(1);
+      else if (dragDeltaX > soglia) setScreen(0);
       else setScreen(currentScreen);
     }
     axisLocked = null;
     dragDeltaX = 0;
   };
 
-  screensViewport.addEventListener('pointerup', endDrag);
-  screensViewport.addEventListener('pointercancel', endDrag);
+  screensViewport.addEventListener('pointerup', fineTrascinamento);
+  screensViewport.addEventListener('pointercancel', fineTrascinamento);
+
+  // L'avviso della prima schermata porta dritto al campo da riempire.
+  retryCatalogBtn.addEventListener('click', () => {
+    setScreen(1);
+    const impostazioni = document.querySelector('.settings');
+    if (impostazioni) impostazioni.open = true;
+    endpointUrlInput.focus();
+  });
 
   /* ------------------------------------------------------------ avvio */
 
-  resetDate();
-
-  // I menu salvati in locale compaiono subito, anche offline o prima della rete.
-  const cached = store.get(CATALOG_KEY);
-  if (cached) {
-    try {
-      applyCatalog(JSON.parse(cached), { persist: false });
-    } catch (e) {
-      renderGroupSelect();
-      updateExerciseOptions();
-      renderManager();
-    }
-  } else {
-    renderGroupSelect();
-    updateExerciseOptions();
-    renderManager();
-  }
-
-  refreshNotice();
-  loadCatalog({ silent: true });
+  dateInput.value = oggi();
+  disegnaTutto();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
