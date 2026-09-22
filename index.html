@@ -13,11 +13,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Allenamento">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 
 <!-- Android / PWA -->
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icons/icon-192.png">
+<link rel="icon" href="icon-192.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,6 +32,7 @@
     --accent: #4C7BFF;
     --success: #4CD787;
     --error: #FF6B6B;
+    --nav-height: 64px;
   }
 
   * { box-sizing: border-box; }
@@ -42,20 +43,18 @@
     background: var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding:
-      max(24px, env(safe-area-inset-top))
-      max(24px, env(safe-area-inset-right))
-      max(24px, env(safe-area-inset-bottom))
-      max(24px, env(safe-area-inset-left));
   }
 
-  .app { width: 100%; max-width: 400px; }
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    max-width: 420px;
+    margin: 0 auto;
+  }
 
-  header { margin-bottom: 40px; }
+  header { margin-bottom: 32px; }
 
   h1 {
     font-family: 'Space Grotesk', sans-serif;
@@ -128,13 +127,12 @@
     background: transparent; color: var(--accent); font-family: inherit; font-size: 0.85rem;
   }
   .text-button:active { transform: none; opacity: 0.75; }
-  .exercise-manager { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
-  .exercise-manager[hidden] { display: none; }
+
   .manager-row { display: flex; align-items: flex-end; gap: 10px; }
   .manager-row label { flex: 1; }
   .manager-row input { font-size: 1rem; }
   .manager-row button { width: auto; min-height: 42px; padding: 10px 14px; border-radius: 8px; }
-  .exercise-list { display: grid; gap: 6px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .exercise-list { display: grid; gap: 6px; margin: 18px 0 0; padding: 0; list-style: none; }
   .exercise-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); font-size: 0.9rem; }
   .delete-exercise { width: auto; min-height: 0; padding: 3px 0; border-radius: 0; background: transparent; color: var(--error); font-family: inherit; font-size: 0.8rem; }
 
@@ -155,15 +153,6 @@
   }
 
   .weight-row > label:first-child {
-    flex: 1;
-  }
-
-  .reps-row {
-    display: flex;
-    gap: 16px;
-  }
-
-  .reps-row .field-input {
     flex: 1;
   }
 
@@ -206,15 +195,68 @@
   button:disabled { opacity: 0.6; cursor: not-allowed; }
   button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
 
-  #status {
+  #status, #exerciseStatus {
     text-align: center;
     min-height: 20px;
     margin-top: 16px;
     font-size: 0.9rem;
   }
-  #status.pending { color: var(--muted); }
-  #status.success { color: var(--success); }
-  #status.error { color: var(--error); }
+  .pending { color: var(--muted); }
+  .success { color: var(--success); }
+  .error { color: var(--error); }
+
+  /* Schermate affiancate: "Allenamento" e "Esercizi" a destra, navigabili con swipe o bottom nav */
+  .screens-viewport {
+    flex: 1;
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+
+  .screens {
+    display: flex;
+    width: 200%;
+    height: 100%;
+    transition: transform 0.3s ease;
+  }
+
+  .screen {
+    width: 50%;
+    height: 100%;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding:
+      max(24px, env(safe-area-inset-top))
+      max(24px, env(safe-area-inset-right))
+      24px
+      max(24px, env(safe-area-inset-left));
+  }
+
+  .bottom-nav {
+    display: flex;
+    flex-shrink: 0;
+    border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--bg);
+  }
+
+  .nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-height: var(--nav-height);
+    padding: 8px 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .nav-btn.active { color: var(--accent); }
+  .nav-icon { font-size: 1.3rem; line-height: 1; }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -224,79 +266,119 @@
 <body>
 
 <div class="app">
-  <header>
-    <h1>Allenamento</h1>
-    <p class="subtitle">Registra la serie appena fatta</p>
-  </header>
+  <div class="screens-viewport" id="screensViewport">
+    <div class="screens" id="screens">
 
-  <form id="logForm" novalidate>
-    <div class="field">
-      <label for="date">Data</label>
-      <input type="date" id="date" name="date" required>
-    </div>
+      <section class="screen" id="screenLog">
+        <header>
+          <h1>Allenamento</h1>
+          <p class="subtitle">Registra la serie appena fatta</p>
+        </header>
 
-    <div class="field">
-      <label for="muscleGroup">Gruppo muscolare</label>
-      <select id="muscleGroup" name="muscleGroup" required>
-        <option value="" selected disabled>Scegli un gruppo</option>
-        <option value="Spalle">Spalle</option>
-        <option value="Petto">Petto</option>
-        <option value="Gambe">Gambe</option>
-        <option value="Braccia">Braccia</option>
-        <option value="Addome">Addome</option>
-        <option value="Dorso">Dorso</option>
-      </select>
-    </div>
+        <form id="logForm" novalidate>
+          <div class="field">
+            <label for="date">Data</label>
+            <input type="date" id="date" name="date" required>
+          </div>
 
-    <div class="field">
-      <label for="exercise">Esercizio</label>
-      <select id="exercise" name="exercise" required disabled>
-        <option value="" selected disabled>Scegli prima un gruppo</option>
-      </select>
-      <div class="exercise-tools">
-        <button type="button" class="text-button" id="manageExercisesBtn">Gestisci esercizi</button>
-      </div>
-      <div class="exercise-manager" id="exerciseManager" hidden>
-        <div class="manager-row">
+          <div class="field">
+            <label for="muscleGroup">Gruppo muscolare</label>
+            <select id="muscleGroup" name="muscleGroup" required>
+              <option value="" selected disabled>Scegli un gruppo</option>
+              <option value="Spalle">Spalle</option>
+              <option value="Petto">Petto</option>
+              <option value="Gambe">Gambe</option>
+              <option value="Braccia">Braccia</option>
+              <option value="Addome">Addome</option>
+              <option value="Dorso">Dorso</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="exercise">Esercizio</label>
+            <select id="exercise" name="exercise" required disabled>
+              <option value="" selected disabled>Scegli prima un gruppo</option>
+            </select>
+            <div class="exercise-tools">
+              <button type="button" class="text-button" id="manageExercisesBtn">Gestisci esercizi</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="repetitions">Ripetizioni per set</label>
+            <input type="number" id="repetitions" name="repetitions" placeholder="Es. 10" inputmode="numeric" min="1" step="1" required>
+          </div>
+
+          <div class="field">
+            <label for="sets">Set</label>
+            <input type="number" id="sets" name="sets" placeholder="Es. 4" inputmode="numeric" min="1" step="1" required>
+          </div>
+
+          <div class="field weight-row">
+            <label for="weight">
+              Peso (kg)
+              <input type="number" id="weight" name="weight" placeholder="Es. 20" inputmode="decimal" min="0" step="0.5">
+            </label>
+            <label class="checkbox-label" for="mono">
+              <input type="checkbox" id="mono" name="mono">
+              Mono
+            </label>
+          </div>
+
+          <div class="field">
+            <label for="comment">Commento</label>
+            <textarea id="comment" name="comment" placeholder="Es. Ultimo set impegnativo" maxlength="500"></textarea>
+          </div>
+
+          <button type="submit" id="submitBtn">Salva serie</button>
+
+          <p id="status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="screen" id="screenExercises">
+        <header>
+          <h1>Esercizi</h1>
+          <p class="subtitle">Aggiungi o rimuovi esercizi dal catalogo</p>
+        </header>
+
+        <div class="field">
+          <label for="exGroupSelect">Gruppo muscolare</label>
+          <select id="exGroupSelect">
+            <option value="Spalle">Spalle</option>
+            <option value="Petto">Petto</option>
+            <option value="Gambe">Gambe</option>
+            <option value="Braccia">Braccia</option>
+            <option value="Addome">Addome</option>
+            <option value="Dorso">Dorso</option>
+          </select>
+        </div>
+
+        <div class="field manager-row">
           <label for="newExercise">Nuovo esercizio
             <input type="text" id="newExercise" maxlength="80" placeholder="Es. Trazioni">
           </label>
           <button type="button" id="addExerciseBtn">Aggiungi</button>
         </div>
+
         <ul class="exercise-list" id="exerciseList"></ul>
-      </div>
+
+        <p id="exerciseStatus" role="status" aria-live="polite"></p>
+      </section>
+
     </div>
+  </div>
 
-    <div class="field">
-      <label for="repetitions">Ripetizioni per set</label>
-      <input type="number" id="repetitions" name="repetitions" placeholder="Es. 10" inputmode="numeric" min="1" step="1" required>
-    </div>
-
-    <div class="field">
-      <label for="sets">Set</label>
-      <input type="number" id="sets" name="sets" placeholder="Es. 4" inputmode="numeric" min="1" step="1" required>
-    </div>
-
-    <div class="field weight-row">
-      <label for="weight">
-        Peso (kg)
-        <input type="number" id="weight" name="weight" placeholder="Es. 20" inputmode="decimal" min="0" step="0.5">
-      </label>
-      <label class="checkbox-label" for="mono">
-        <input type="checkbox" id="mono" name="mono">
-        Mono
-      </label>
-    </div>
-
-    <div class="field">
-      <label for="comment">Commento</label>
-      <textarea id="comment" name="comment" placeholder="Es. Ultimo set impegnativo" maxlength="500"></textarea>
-    </div>
-
-    <button type="submit" id="submitBtn">Salva serie</button>
-
-    <p id="status" role="status" aria-live="polite"></p>
-  </form>
+  <nav class="bottom-nav" id="bottomNav">
+    <button type="button" class="nav-btn active" data-screen="0" aria-current="page">
+      <span class="nav-icon">🏋️</span>
+      <span>Allenamento</span>
+    </button>
+    <button type="button" class="nav-btn" data-screen="1" aria-current="false">
+      <span class="nav-icon">📋</span>
+      <span>Esercizi</span>
+    </button>
+  </nav>
 </div>
 
 <script>
@@ -310,16 +392,18 @@
   const muscleGroupInput = document.getElementById('muscleGroup');
   const exerciseInput = document.getElementById('exercise');
   const manageExercisesBtn = document.getElementById('manageExercisesBtn');
-  const exerciseManager = document.getElementById('exerciseManager');
+  const exGroupSelect = document.getElementById('exGroupSelect');
   const newExerciseInput = document.getElementById('newExercise');
   const addExerciseBtn = document.getElementById('addExerciseBtn');
   const exerciseList = document.getElementById('exerciseList');
+  const exerciseStatus = document.getElementById('exerciseStatus');
   const repetitionsInput = document.getElementById('repetitions');
   const setsInput = document.getElementById('sets');
   const weightInput = document.getElementById('weight');
   const monoInput = document.getElementById('mono');
   const commentInput = document.getElementById('comment');
   let statusTimer = null;
+  let exerciseStatusTimer = null;
 
   let exercisesByGroup = {
     Spalle: ['Military press', 'Alzate laterali', 'Alzate frontali', 'Reverse fly'],
@@ -360,7 +444,7 @@
 
   const renderExerciseList = () => {
     exerciseList.innerHTML = '';
-    (exercisesByGroup[muscleGroupInput.value] || []).forEach((exercise) => {
+    (exercisesByGroup[exGroupSelect.value] || []).forEach((exercise) => {
       const item = document.createElement('li');
       const name = document.createElement('span');
       name.textContent = exercise;
@@ -375,12 +459,12 @@
   };
 
   const changeExercise = async (action, exercise) => {
-    const group = muscleGroupInput.value;
-    if (!group) return;
+    const group = exGroupSelect.value;
 
     addExerciseBtn.disabled = true;
-    status.className = 'pending';
-    status.textContent = 'Aggiornamento in corso…';
+    clearTimeout(exerciseStatusTimer);
+    exerciseStatus.className = 'pending';
+    exerciseStatus.textContent = 'Aggiornamento in corso…';
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -391,26 +475,21 @@
       if (!response.ok || data.result !== 'success') throw new Error(data.message || 'Impossibile aggiornare gli esercizi');
       setExercises(data.exercises);
       newExerciseInput.value = '';
-      status.className = 'success';
-      status.textContent = data.message;
+      exerciseStatus.className = 'success';
+      exerciseStatus.textContent = data.message;
     } catch (err) {
-      status.className = 'error';
-      status.textContent = err.message;
+      exerciseStatus.className = 'error';
+      exerciseStatus.textContent = err.message;
     } finally {
       addExerciseBtn.disabled = false;
-      statusTimer = setTimeout(() => { status.textContent = ''; status.className = ''; }, 3000);
+      exerciseStatusTimer = setTimeout(() => { exerciseStatus.textContent = ''; exerciseStatus.className = ''; }, 3000);
     }
   };
 
-  muscleGroupInput.addEventListener('change', () => {
-    updateExerciseOptions();
-    renderExerciseList();
-  });
+  muscleGroupInput.addEventListener('change', updateExerciseOptions);
+  exGroupSelect.addEventListener('change', renderExerciseList);
 
-  manageExercisesBtn.addEventListener('click', () => {
-    exerciseManager.hidden = !exerciseManager.hidden;
-    if (!exerciseManager.hidden) renderExerciseList();
-  });
+  renderExerciseList();
 
   addExerciseBtn.addEventListener('click', () => {
     const exercise = newExerciseInput.value.trim();
@@ -471,7 +550,6 @@
         form.reset();
         exerciseInput.innerHTML = '<option value="" selected disabled>Scegli prima un gruppo</option>';
         exerciseInput.disabled = true;
-        exerciseManager.hidden = true;
         resetDate();
         exerciseInput.focus();
       } else {
@@ -491,6 +569,91 @@
       }, 3000);
     }
   });
+
+  // Navigazione tra le due schermate: bottom nav e swipe orizzontale
+  const screens = document.getElementById('screens');
+  const screensViewport = document.getElementById('screensViewport');
+  const navButtons = document.querySelectorAll('.nav-btn');
+  let currentScreen = 0;
+
+  const setScreen = (index, animate = true) => {
+    currentScreen = Math.max(0, Math.min(1, index));
+    screens.style.transition = animate ? 'transform 0.3s ease' : 'none';
+    screens.style.transform = `translateX(${currentScreen * -50}%)`;
+    navButtons.forEach((navBtn) => {
+      const isActive = Number(navBtn.dataset.screen) === currentScreen;
+      navBtn.classList.toggle('active', isActive);
+      navBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    });
+  };
+
+  navButtons.forEach((navBtn) => {
+    navBtn.addEventListener('click', () => setScreen(Number(navBtn.dataset.screen)));
+  });
+
+  manageExercisesBtn.addEventListener('click', () => {
+    if (muscleGroupInput.value) {
+      exGroupSelect.value = muscleGroupInput.value;
+      renderExerciseList();
+    }
+    setScreen(1);
+  });
+
+  const isInteractive = (el) => !!el.closest('input, select, textarea, button, label');
+
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+  let dragDeltaX = 0;
+  let axisLocked = null;
+
+  screensViewport.addEventListener('pointerdown', (e) => {
+    if (isInteractive(e.target)) return;
+    pointerId = e.pointerId;
+    startX = e.clientX;
+    startY = e.clientY;
+    dragDeltaX = 0;
+    axisLocked = null;
+    screens.style.transition = 'none';
+  });
+
+  screensViewport.addEventListener('pointermove', (e) => {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    if (axisLocked === null) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      axisLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (axisLocked === 'x') screensViewport.setPointerCapture(pointerId);
+    }
+
+    if (axisLocked !== 'x') return;
+
+    e.preventDefault();
+    dragDeltaX = dx;
+    const width = screensViewport.clientWidth || 1;
+    const basePercent = currentScreen * -50;
+    const nextPercent = Math.max(-50, Math.min(0, basePercent + (dragDeltaX / width) * 50));
+    screens.style.transform = `translateX(${nextPercent}%)`;
+  });
+
+  const endDrag = (e) => {
+    if (pointerId === null || (e && e.pointerId !== pointerId)) return;
+    pointerId = null;
+    if (axisLocked === 'x') {
+      const width = screensViewport.clientWidth || 1;
+      const threshold = width * 0.2;
+      if (dragDeltaX < -threshold) setScreen(1);
+      else if (dragDeltaX > threshold) setScreen(0);
+      else setScreen(currentScreen);
+    }
+    axisLocked = null;
+    dragDeltaX = 0;
+  };
+
+  screensViewport.addEventListener('pointerup', endDrag);
+  screensViewport.addEventListener('pointercancel', endDrag);
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
