@@ -57,6 +57,11 @@ function doPost(event) {
       return jsonResponse({ result: 'success', message: 'Esercizio rimosso', exercises: getExercises() });
     }
 
+    if (payload.action === 'renameExercise') {
+      renameExercise(payload);
+      return jsonResponse({ result: 'success', message: 'Esercizio aggiornato', exercises: getExercises() });
+    }
+
     const row = buildRow(payload);
     const sheet = getSheet();
 
@@ -169,6 +174,33 @@ function deleteExercise(payload) {
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     if (String(rows[index][0]).trim() === group && String(rows[index][1]).trim() === exercise) {
       sheet.deleteRow(index + 2);
+      return;
+    }
+  }
+  throw new Error('Esercizio non trovato');
+}
+
+function renameExercise(payload) {
+  const group = String(payload.gruppoMuscolare || '').trim();
+  const oldExercise = String(payload.esercizio || '').trim();
+  const newExercise = String(payload.nuovoEsercizio || '').trim();
+  if (!group || !oldExercise || !newExercise) throw new Error('Gruppo, esercizio e nuovo nome sono obbligatori');
+
+  const sheet = getExerciseSheet();
+  const rows = sheet.getLastRow() > 1
+    ? sheet.getRange(2, 1, sheet.getLastRow() - 1, EXERCISE_HEADERS.length).getValues()
+    : [];
+
+  const duplicate = rows.some(function(row) {
+    return String(row[0]).trim() === group
+      && String(row[1]).trim() !== oldExercise
+      && String(row[1]).trim().toLowerCase() === newExercise.toLowerCase();
+  });
+  if (duplicate) throw new Error('Esiste gia un esercizio con questo nome nel gruppo selezionato');
+
+  for (let index = 0; index < rows.length; index += 1) {
+    if (String(rows[index][0]).trim() === group && String(rows[index][1]).trim() === oldExercise) {
+      sheet.getRange(index + 2, 2).setValue(newExercise);
       return;
     }
   }

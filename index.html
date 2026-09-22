@@ -132,9 +132,43 @@
   .manager-row label { flex: 1; }
   .manager-row input { font-size: 1rem; }
   .manager-row button { width: auto; min-height: 42px; padding: 10px 14px; border-radius: 8px; }
-  .exercise-list { display: grid; gap: 6px; margin: 18px 0 0; padding: 0; list-style: none; }
-  .exercise-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); font-size: 0.9rem; }
-  .delete-exercise { width: auto; min-height: 0; padding: 3px 0; border-radius: 0; background: transparent; color: var(--error); font-family: inherit; font-size: 0.8rem; }
+
+  .group-section { margin-bottom: 26px; }
+  .group-heading {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    margin: 0 0 10px;
+  }
+  .group-empty { margin: 0; color: var(--muted); font-size: 0.85rem; }
+
+  .exercise-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+  .exercise-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text);
+    font-size: 0.95rem;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .exercise-list li input[type="text"] { flex: 1; font-size: 0.95rem; padding: 4px 2px; }
+  .exercise-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .icon-button {
+    width: 34px;
+    min-height: 34px;
+    padding: 0;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+  .icon-button:active { transform: scale(0.94); }
+  .icon-button.delete-exercise { color: var(--error); border-color: var(--error); }
+  .icon-button.save-exercise { color: var(--success); border-color: var(--success); }
 
   input:focus {
     outline: none;
@@ -242,21 +276,17 @@
   .nav-btn {
     flex: 1;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 2px;
+    justify-content: center;
     min-height: var(--nav-height);
     padding: 8px 0;
     border-radius: 0;
     background: transparent;
     color: var(--muted);
-    font-family: inherit;
-    font-size: 0.75rem;
-    font-weight: 700;
   }
 
   .nav-btn.active { color: var(--accent); }
-  .nav-icon { font-size: 1.3rem; line-height: 1; }
+  .nav-icon { font-size: 1.7rem; line-height: 1; }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -339,12 +369,12 @@
       <section class="screen" id="screenExercises">
         <header>
           <h1>Esercizi</h1>
-          <p class="subtitle">Aggiungi o rimuovi esercizi dal catalogo</p>
+          <p class="subtitle">Crea, modifica o elimina gli esercizi del catalogo</p>
         </header>
 
         <div class="field">
-          <label for="exGroupSelect">Gruppo muscolare</label>
-          <select id="exGroupSelect">
+          <label for="newExerciseGroup">Aggiungi a</label>
+          <select id="newExerciseGroup">
             <option value="Spalle">Spalle</option>
             <option value="Petto">Petto</option>
             <option value="Gambe">Gambe</option>
@@ -361,22 +391,20 @@
           <button type="button" id="addExerciseBtn">Aggiungi</button>
         </div>
 
-        <ul class="exercise-list" id="exerciseList"></ul>
-
         <p id="exerciseStatus" role="status" aria-live="polite"></p>
+
+        <div id="exerciseGroups"></div>
       </section>
 
     </div>
   </div>
 
   <nav class="bottom-nav" id="bottomNav">
-    <button type="button" class="nav-btn active" data-screen="0" aria-current="page">
-      <span class="nav-icon">🏋️</span>
-      <span>Allenamento</span>
+    <button type="button" class="nav-btn active" data-screen="0" aria-current="page" aria-label="Allenamento">
+      <span class="nav-icon" aria-hidden="true">➕</span>
     </button>
-    <button type="button" class="nav-btn" data-screen="1" aria-current="false">
-      <span class="nav-icon">📋</span>
-      <span>Esercizi</span>
+    <button type="button" class="nav-btn" data-screen="1" aria-current="false" aria-label="Esercizi">
+      <span class="nav-icon" aria-hidden="true">✏️</span>
     </button>
   </nav>
 </div>
@@ -392,11 +420,12 @@
   const muscleGroupInput = document.getElementById('muscleGroup');
   const exerciseInput = document.getElementById('exercise');
   const manageExercisesBtn = document.getElementById('manageExercisesBtn');
-  const exGroupSelect = document.getElementById('exGroupSelect');
+  const newExerciseGroup = document.getElementById('newExerciseGroup');
   const newExerciseInput = document.getElementById('newExercise');
   const addExerciseBtn = document.getElementById('addExerciseBtn');
-  const exerciseList = document.getElementById('exerciseList');
+  const exerciseGroups = document.getElementById('exerciseGroups');
   const exerciseStatus = document.getElementById('exerciseStatus');
+  const MUSCLE_GROUPS = ['Spalle', 'Petto', 'Gambe', 'Braccia', 'Addome', 'Dorso'];
   const repetitionsInput = document.getElementById('repetitions');
   const setsInput = document.getElementById('sets');
   const weightInput = document.getElementById('weight');
@@ -427,7 +456,7 @@
   const setExercises = (exercises) => {
     exercisesByGroup = exercises || {};
     updateExerciseOptions();
-    renderExerciseList();
+    renderAllGroups();
   };
 
   const updateExerciseOptions = () => {
@@ -442,58 +471,138 @@
     exerciseInput.disabled = exercises.length === 0;
   };
 
-  const renderExerciseList = () => {
-    exerciseList.innerHTML = '';
-    (exercisesByGroup[exGroupSelect.value] || []).forEach((exercise) => {
-      const item = document.createElement('li');
-      const name = document.createElement('span');
-      name.textContent = exercise;
-      const deleteButton = document.createElement('button');
-      deleteButton.type = 'button';
-      deleteButton.className = 'delete-exercise';
-      deleteButton.textContent = 'Rimuovi';
-      deleteButton.addEventListener('click', () => changeExercise('deleteExercise', exercise));
-      item.append(name, deleteButton);
-      exerciseList.appendChild(item);
-    });
-  };
-
-  const changeExercise = async (action, exercise) => {
-    const group = exGroupSelect.value;
-
-    addExerciseBtn.disabled = true;
+  const callExerciseAction = async (action, payload) => {
     clearTimeout(exerciseStatusTimer);
     exerciseStatus.className = 'pending';
     exerciseStatus.textContent = 'Aggiornamento in corso…';
+    let success = false;
     try {
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action, gruppoMuscolare: group, esercizio: exercise })
+        body: JSON.stringify({ action, ...payload })
       });
       const data = await response.json();
       if (!response.ok || data.result !== 'success') throw new Error(data.message || 'Impossibile aggiornare gli esercizi');
       setExercises(data.exercises);
-      newExerciseInput.value = '';
       exerciseStatus.className = 'success';
       exerciseStatus.textContent = data.message;
+      success = true;
     } catch (err) {
       exerciseStatus.className = 'error';
       exerciseStatus.textContent = err.message;
     } finally {
-      addExerciseBtn.disabled = false;
       exerciseStatusTimer = setTimeout(() => { exerciseStatus.textContent = ''; exerciseStatus.className = ''; }, 3000);
     }
+    return success;
+  };
+
+  const buildExerciseItem = (group, exercise) => {
+    const item = document.createElement('li');
+
+    const renderView = () => {
+      item.innerHTML = '';
+      const name = document.createElement('span');
+      name.textContent = exercise;
+
+      const actions = document.createElement('span');
+      actions.className = 'exercise-actions';
+
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.className = 'icon-button edit-exercise';
+      editButton.textContent = '✏️';
+      editButton.setAttribute('aria-label', `Modifica ${exercise}`);
+      editButton.addEventListener('click', renderEdit);
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'icon-button delete-exercise';
+      deleteButton.textContent = '🗑️';
+      deleteButton.setAttribute('aria-label', `Rimuovi ${exercise}`);
+      deleteButton.addEventListener('click', () => callExerciseAction('deleteExercise', { gruppoMuscolare: group, esercizio: exercise }));
+
+      actions.append(editButton, deleteButton);
+      item.append(name, actions);
+    };
+
+    const renderEdit = () => {
+      item.innerHTML = '';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 80;
+      input.value = exercise;
+
+      const actions = document.createElement('span');
+      actions.className = 'exercise-actions';
+
+      const saveButton = document.createElement('button');
+      saveButton.type = 'button';
+      saveButton.className = 'icon-button save-exercise';
+      saveButton.textContent = '✓';
+      saveButton.setAttribute('aria-label', `Salva ${exercise}`);
+      saveButton.addEventListener('click', () => {
+        const newName = input.value.trim();
+        if (!newName || newName === exercise) { renderView(); return; }
+        callExerciseAction('renameExercise', { gruppoMuscolare: group, esercizio: exercise, nuovoEsercizio: newName });
+      });
+
+      const cancelButton = document.createElement('button');
+      cancelButton.type = 'button';
+      cancelButton.className = 'icon-button cancel-exercise';
+      cancelButton.textContent = '✕';
+      cancelButton.setAttribute('aria-label', 'Annulla modifica');
+      cancelButton.addEventListener('click', renderView);
+
+      actions.append(saveButton, cancelButton);
+      item.append(input, actions);
+      input.focus();
+      input.select();
+    };
+
+    renderView();
+    return item;
+  };
+
+  const renderAllGroups = () => {
+    exerciseGroups.innerHTML = '';
+    MUSCLE_GROUPS.forEach((group) => {
+      const section = document.createElement('section');
+      section.className = 'group-section';
+
+      const heading = document.createElement('h2');
+      heading.className = 'group-heading';
+      heading.textContent = group;
+      section.appendChild(heading);
+
+      const exercises = exercisesByGroup[group] || [];
+      if (exercises.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'group-empty';
+        empty.textContent = 'Nessun esercizio';
+        section.appendChild(empty);
+      } else {
+        const list = document.createElement('ul');
+        list.className = 'exercise-list';
+        exercises.forEach((exercise) => list.appendChild(buildExerciseItem(group, exercise)));
+        section.appendChild(list);
+      }
+
+      exerciseGroups.appendChild(section);
+    });
   };
 
   muscleGroupInput.addEventListener('change', updateExerciseOptions);
-  exGroupSelect.addEventListener('change', renderExerciseList);
 
-  renderExerciseList();
+  renderAllGroups();
 
-  addExerciseBtn.addEventListener('click', () => {
+  addExerciseBtn.addEventListener('click', async () => {
     const exercise = newExerciseInput.value.trim();
-    if (exercise) changeExercise('saveExercise', exercise);
+    if (!exercise) return;
+    addExerciseBtn.disabled = true;
+    const success = await callExerciseAction('saveExercise', { gruppoMuscolare: newExerciseGroup.value, esercizio: exercise });
+    addExerciseBtn.disabled = false;
+    if (success) newExerciseInput.value = '';
   });
 
   fetch(`${SCRIPT_URL}?action=listExercises`)
@@ -592,10 +701,7 @@
   });
 
   manageExercisesBtn.addEventListener('click', () => {
-    if (muscleGroupInput.value) {
-      exGroupSelect.value = muscleGroupInput.value;
-      renderExerciseList();
-    }
+    if (muscleGroupInput.value) newExerciseGroup.value = muscleGroupInput.value;
     setScreen(1);
   });
 
