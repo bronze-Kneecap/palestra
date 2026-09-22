@@ -186,6 +186,16 @@
     font-size: 0.9rem;
     overflow-wrap: anywhere;
   }
+  /* Riga discreta sotto l'esercizio: cosa si e fatto l'ultima volta */
+  .hint {
+    display: none;
+    margin: 8px 0 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+  .hint.visible { display: block; }
+
   .sync {
     margin: 10px 0 0;
     font-size: 0.8rem;
@@ -403,6 +413,7 @@
           <div class="field">
             <label for="exercise">Esercizio</label>
             <select id="exercise" name="exercise" required></select>
+            <p class="hint" id="lastSeriesHint"></p>
           </div>
 
           <div class="field">
@@ -507,6 +518,7 @@
 
   const CHIAVE_MENU = 'allenamento:menu';
   const CHIAVE_URL = 'allenamento:scriptUrl';
+  const CHIAVE_ULTIME = 'allenamento:ultimeSerie';
   const LUNGHEZZA_MAX = 80;
 
   const $ = (id) => document.getElementById(id);
@@ -522,6 +534,7 @@
   const weightInput = $('weight');
   const monoInput = $('mono');
   const commentInput = $('comment');
+  const lastSeriesHint = $('lastSeriesHint');
 
   const catalogNotice = $('catalogNotice');
   const catalogNoticeText = $('catalogNoticeText');
@@ -667,12 +680,14 @@
     const eraScelto = muscleGroupInput.value === vecchio;
     const esercizioScelto = exerciseInput.value;
 
+    spostaGruppo(vecchio, check.valore);
     gruppo.gruppo = check.valore;
     salvaMenu('Gruppo rinominato', eraScelto ? check.valore : undefined, eraScelto ? esercizioScelto : undefined);
     return true;
   };
 
   const eliminaGruppo = (nome) => {
+    dimenticaGruppo(nome);
     menu = menu.filter((voce) => voce.gruppo !== nome);
     salvaMenu('Gruppo rimosso');
   };
@@ -703,6 +718,7 @@
 
     const eraScelto = muscleGroupInput.value === nomeGruppo && exerciseInput.value === vecchio;
 
+    spostaSerie(nomeGruppo, vecchio, nomeGruppo, check.valore);
     gruppo.esercizi[posizione] = check.valore;
     salvaMenu('Esercizio rinominato', undefined, eraScelto ? check.valore : undefined);
     return true;
@@ -711,8 +727,118 @@
   const eliminaEsercizio = (nomeGruppo, esercizio) => {
     const gruppo = trovaGruppo(nomeGruppo);
     if (!gruppo) return;
+    dimenticaSerie(nomeGruppo, esercizio);
     gruppo.esercizi = gruppo.esercizi.filter((e) => e !== esercizio);
     salvaMenu('Esercizio rimosso');
+  };
+
+  /* --------------------- ultima serie di ogni esercizio (solo locale) */
+
+  // Il foglio resta lo storico buono: questa memoria serve soltanto a
+  // riproporre i numeri gia usati, cosi scegliendo un esercizio i campi
+  // arrivano gia compilati e di solito basta premere Salva.
+  const chiaveSerie = (gruppo, esercizio) => gruppo + '\u0000' + esercizio;
+
+  let ultimeSerie = (() => {
+    try {
+      const dati = JSON.parse(store.get(CHIAVE_ULTIME) || '{}');
+      return dati && typeof dati === 'object' && !Array.isArray(dati) ? dati : {};
+    } catch (e) {
+      return {};
+    }
+  })();
+
+  const scriviUltimeSerie = () => store.set(CHIAVE_ULTIME, JSON.stringify(ultimeSerie));
+
+  const ricordaSerie = (payload) => {
+    if (!payload.gruppoMuscolare || !payload.esercizio) return;
+    ultimeSerie[chiaveSerie(payload.gruppoMuscolare, payload.esercizio)] = {
+      ripetizioni: payload.ripetizioni,
+      set: payload.set,
+      peso: payload.peso,
+      mono: payload.mono === true,
+      data: payload.data
+    };
+    scriviUltimeSerie();
+  };
+
+  // Rinominare o cancellare una voce del menu non deve lasciare in giro
+  // ricordi orfani: la memoria segue il nome.
+  const spostaSerie = (daGruppo, daEsercizio, aGruppo, aEsercizio) => {
+    const vecchia = chiaveSerie(daGruppo, daEsercizio);
+    if (!Object.prototype.hasOwnProperty.call(ultimeSerie, vecchia)) return;
+    ultimeSerie[chiaveSerie(aGruppo, aEsercizio)] = ultimeSerie[vecchia];
+    delete ultimeSerie[vecchia];
+    scriviUltimeSerie();
+  };
+
+  const spostaGruppo = (vecchio, nuovo) => {
+    const prefisso = vecchio + '\u0000';
+    Object.keys(ultimeSerie).forEach((chiave) => {
+      if (chiave.indexOf(prefisso) !== 0) return;
+      ultimeSerie[nuovo + '\u0000' + chiave.slice(prefisso.length)] = ultimeSerie[chiave];
+      delete ultimeSerie[chiave];
+    });
+    scriviUltimeSerie();
+  };
+
+  const dimenticaSerie = (gruppo, esercizio) => {
+    delete ultimeSerie[chiaveSerie(gruppo, esercizio)];
+    scriviUltimeSerie();
+  };
+
+  const dimenticaGruppo = (gruppo) => {
+    const prefisso = gruppo + '\u0000';
+    Object.keys(ultimeSerie).forEach((chiave) => {
+      if (chiave.indexOf(prefisso) === 0) delete ultimeSerie[chiave];
+    });
+    scriviUltimeSerie();
+  };
+
+  const serieRicordata = () => {
+    if (!muscleGroupInput.value || !exerciseInput.value) return null;
+    const serie = ultimeSerie[chiaveSerie(muscleGroupInput.value, exerciseInput.value)];
+    return serie && typeof serie === 'object' ? serie : null;
+  };
+
+  const valoreTesto = (valore) => (valore === null || valore === undefined ? '' : String(valore).trim());
+
+  const descriviSerie = (serie) => {
+    const pezzi = [];
+    const ripetizioni = valoreTesto(serie.ripetizioni);
+    const set = valoreTesto(serie.set);
+    if (ripetizioni && set) pezzi.push(ripetizioni + ' × ' + set + ' set');
+    else if (ripetizioni) pezzi.push(ripetizioni + ' ripetizioni');
+    else if (set) pezzi.push(set + ' set');
+
+    const peso = valoreTesto(serie.peso);
+    if (peso) pezzi.push(peso + ' kg');
+    if (serie.mono === true) pezzi.push('mono');
+    if (!pezzi.length) return '';
+
+    const data = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valoreTesto(serie.data));
+    const quando = data ? ' del ' + data[3] + '/' + data[2] : '';
+    return 'Ultima serie' + quando + ': ' + pezzi.join(' · ');
+  };
+
+  const mostraSuggerimento = () => {
+    const serie = serieRicordata();
+    const descrizione = serie ? descriviSerie(serie) : '';
+    lastSeriesHint.textContent = descrizione;
+    lastSeriesHint.classList.toggle('visible', descrizione !== '');
+  };
+
+  // Scegliere un esercizio riempie i campi con l'ultima serie salvata: sono
+  // valori normali, basta scriverci sopra per cambiarli. Se di quell'esercizio
+  // non si sa ancora nulla i campi tornano vuoti, cosi non restano addosso i
+  // numeri dell'esercizio scelto prima.
+  const applicaUltimaSerie = () => {
+    const serie = serieRicordata() || {};
+    repetitionsInput.value = valoreTesto(serie.ripetizioni);
+    setsInput.value = valoreTesto(serie.set);
+    weightInput.value = valoreTesto(serie.peso);
+    monoInput.checked = serie.mono === true;
+    mostraSuggerimento();
   };
 
   /* -------------------------------------- menu a tendina (prima schermata) */
@@ -958,6 +1084,7 @@
     disegnaMenuEsercizi(selEsercizio);
     disegnaEditor();
     aggiornaAvviso();
+    mostraSuggerimento();
   };
 
   addGroupBtn.addEventListener('click', () => {
@@ -1129,7 +1256,12 @@
     return new Date(adesso.getTime() - scarto).toISOString().slice(0, 10);
   };
 
-  muscleGroupInput.addEventListener('change', () => disegnaMenuEsercizi(''));
+  muscleGroupInput.addEventListener('change', () => {
+    disegnaMenuEsercizi('');
+    mostraSuggerimento();
+  });
+
+  exerciseInput.addEventListener('change', applicaUltimaSerie);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1163,9 +1295,11 @@
     try {
       await inviaAFogli(payload);
       showStatus(status, 'success', 'Salvato ✓');
+      ricordaSerie(payload);
 
       // Data e gruppo restano: di solito segue un altro esercizio dello stesso gruppo.
       disegnaMenuEsercizi('');
+      mostraSuggerimento();
       repetitionsInput.value = '';
       setsInput.value = '';
       weightInput.value = '';
