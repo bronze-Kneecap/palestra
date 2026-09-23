@@ -259,18 +259,20 @@
   .group-header input { flex: 1; min-width: 0; font-size: 1.05rem; }
   .group-empty { margin: 10px 0 0; color: var(--muted); font-size: 0.85rem; }
 
-  .exercise-list { margin: 8px 0 0; padding: 0; list-style: none; }
-  .exercise-list li {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  .exercise-list, .sub-list { margin: 8px 0 0; padding: 0; list-style: none; }
+  .exercise-list > li {
     font-size: 0.95rem;
     padding: 8px 0;
     border-top: 1px solid var(--line);
   }
-  .exercise-list li:first-child { border-top: none; }
+  .exercise-list > li:first-child { border-top: none; }
+  .item-row { display: flex; align-items: center; gap: 10px; }
   .exercise-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-  .exercise-list li input { flex: 1; min-width: 0; font-size: 0.95rem; padding: 4px 2px; }
+  .item-detail { display: block; margin-top: 2px; color: var(--muted); font-size: 0.8rem; }
+  .item-row input { flex: 1; min-width: 0; font-size: 0.95rem; padding: 4px 2px; }
+
+  .sub-panel { margin: 10px 0 4px 14px; padding-left: 12px; border-left: 2px solid var(--line); }
+  .sub-list li { padding: 6px 0; font-size: 0.9rem; }
 
   .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
@@ -413,8 +415,15 @@
           <div class="field">
             <label for="exercise">Esercizio</label>
             <select id="exercise" name="exercise" required></select>
-            <p class="hint" id="lastSeriesHint"></p>
           </div>
+
+          <!-- Compare solo per gli esercizi che hanno sottocategorie -->
+          <div class="field" id="subcategoryField" hidden>
+            <label for="subcategory">Sottocategoria</label>
+            <select id="subcategory" name="subcategory"></select>
+          </div>
+
+          <p class="hint" id="lastSeriesHint"></p>
 
           <div class="field">
             <label for="repetitions">Ripetizioni per set</label>
@@ -502,14 +511,23 @@
      Modifica qui i valori predefiniti: e l'unico posto da toccare.
      Le modifiche fatte dalla schermata "Esercizi" restano sul dispositivo
      e hanno la precedenza; "Ripristina elenco predefinito" torna a questo.
+
+     sottocategorie e facoltativo: per un esercizio che si fa in piu modi
+     elenca gli attrezzi (o le varianti) fra cui scegliere. Un esercizio che
+     si fa in un modo solo semplicemente non compare.
      ==================================================================== */
   const CATALOGO_PREDEFINITO = [
-    { gruppo: 'Spalle',  esercizi: ['Military press', 'Alzate laterali', 'Alzate frontali', 'Reverse fly'] },
-    { gruppo: 'Petto',   esercizi: ['Panca piana', 'Panca inclinata', 'Chest press', 'Croci'] },
-    { gruppo: 'Gambe',   esercizi: ['Squat', 'Leg press', 'Affondi', 'Leg extension', 'Leg curl'] },
-    { gruppo: 'Braccia', esercizi: ['Curl con bilanciere', 'Curl con manubri', 'Pushdown', 'French press'] },
+    { gruppo: 'Spalle',  esercizi: ['Military press', 'Alzate laterali', 'Alzate frontali', 'Reverse fly'],
+      sottocategorie: { 'Military press': ['Bilanciere', 'Manubri', 'Macchina'], 'Alzate laterali': ['Manubri', 'Cavi'] } },
+    { gruppo: 'Petto',   esercizi: ['Panca piana', 'Panca inclinata', 'Chest press', 'Croci'],
+      sottocategorie: { 'Panca piana': ['Bilanciere', 'Manubri', 'Smith machine'], 'Panca inclinata': ['Bilanciere', 'Manubri'], 'Croci': ['Manubri', 'Cavi', 'Macchina'] } },
+    { gruppo: 'Gambe',   esercizi: ['Squat', 'Leg press', 'Affondi', 'Leg extension', 'Leg curl'],
+      sottocategorie: { 'Squat': ['Bilanciere', 'Smith machine'], 'Affondi': ['Manubri', 'Bilanciere'] } },
+    { gruppo: 'Braccia', esercizi: ['Curl', 'Pushdown', 'French press'],
+      sottocategorie: { 'Curl': ['Bilanciere', 'Manubri', 'Cavi'], 'Pushdown': ['Corda', 'Barra'] } },
     { gruppo: 'Addome',  esercizi: ['Crunch', 'Plank', 'Leg raise', 'Ab wheel'] },
-    { gruppo: 'Dorso',   esercizi: ['Stacco da terra', 'Lat machine', 'Rematore', 'Pulley'] }
+    { gruppo: 'Dorso',   esercizi: ['Stacco da terra', 'Lat machine', 'Rematore', 'Pulley'],
+      sottocategorie: { 'Rematore': ['Bilanciere', 'Manubrio', 'Macchina'], 'Lat machine': ['Presa larga', 'Presa stretta'] } }
   ];
 
   // URL del deploy di Google Apps Script (termina con /exec).
@@ -529,6 +547,8 @@
   const dateInput = $('date');
   const muscleGroupInput = $('muscleGroup');
   const exerciseInput = $('exercise');
+  const subcategoryField = $('subcategoryField');
+  const subcategoryInput = $('subcategory');
   const repetitionsInput = $('repetitions');
   const setsInput = $('sets');
   const weightInput = $('weight');
@@ -577,13 +597,21 @@
 
   /* ------------------------------------------- il menu, tutto dentro l'app */
 
-  const copiaPredefinito = () => CATALOGO_PREDEFINITO.map((voce) => ({
-    gruppo: voce.gruppo,
-    esercizi: voce.esercizi.slice()
-  }));
+  const possiede = (oggetto, chiave) => Object.prototype.hasOwnProperty.call(oggetto, chiave);
+
+  // Elenco di nomi ripulito: niente vuoti, niente doppioni.
+  const pulisciElenco = (lista) => (Array.isArray(lista)
+    ? lista
+        .map((e) => (typeof e === 'string' ? e.trim() : ''))
+        .filter((e, i, elenco) => e && elenco.indexOf(e) === i)
+    : []);
 
   // Ripulisce qualunque cosa arrivi dalla memoria locale: se e illeggibile o
   // vuota si riparte dall'elenco predefinito scritto qui sopra.
+  //
+  // Le sottocategorie stanno in un oggetto a parte, esercizio -> elenco, e
+  // non dentro esercizi: una versione precedente dell'app che legge il menu
+  // dal foglio continua a trovare esercizi come semplice elenco di nomi.
   const normalizza = (dati) => {
     if (!Array.isArray(dati)) return null;
 
@@ -593,17 +621,26 @@
       const nome = voce.gruppo.trim();
       if (!nome || gruppi.some((g) => g.gruppo === nome)) return;
 
-      const esercizi = Array.isArray(voce.esercizi)
-        ? voce.esercizi
-            .map((e) => (typeof e === 'string' ? e.trim() : ''))
-            .filter((e, i, lista) => e && lista.indexOf(e) === i)
-        : [];
+      const esercizi = pulisciElenco(voce.esercizi);
 
-      gruppi.push({ gruppo: nome, esercizi });
+      const origine = voce.sottocategorie && typeof voce.sottocategorie === 'object' ? voce.sottocategorie : {};
+      const sottocategorie = Object.create(null);
+      esercizi.forEach((esercizio) => {
+        if (!possiede(origine, esercizio)) return;
+        const elenco = pulisciElenco(origine[esercizio]);
+        if (elenco.length) sottocategorie[esercizio] = elenco;
+      });
+
+      gruppi.push({ gruppo: nome, esercizi, sottocategorie });
     });
 
     return gruppi.length ? gruppi : null;
   };
+
+  const copiaPredefinito = () => normalizza(CATALOGO_PREDEFINITO);
+
+  const sottocategorieDi = (voce, esercizio) =>
+    (voce && esercizio && possiede(voce.sottocategorie, esercizio) ? voce.sottocategorie[esercizio] : []);
 
   // aggiornato: quando il menu e stato toccato l'ultima volta (serve a capire
   // quale versione vince fra dispositivi). sincronizzato: se il foglio ha gia
@@ -643,13 +680,13 @@
     return { valore: pulito };
   };
 
-  // selGruppo/selEsercizio: cosa deve restare scelto nella prima schermata dopo
-  // il ridisegno. Omessi, si conserva la scelta attuale.
-  const salvaMenu = (messaggio, selGruppo, selEsercizio) => {
+  // selGruppo/selEsercizio/selSottocategoria: cosa deve restare scelto nella
+  // prima schermata dopo il ridisegno. Omessi, si conserva la scelta attuale.
+  const salvaMenu = (messaggio, selGruppo, selEsercizio, selSottocategoria) => {
     aggiornato = Date.now();
     sincronizzato = false;
     scriviLocale();
-    disegnaTutto(selGruppo, selEsercizio);
+    disegnaTutto(selGruppo, selEsercizio, selSottocategoria);
     if (messaggio) showStatus(exerciseStatus, 'success', messaggio);
     programmaInvio();
   };
@@ -680,14 +717,17 @@
     const eraScelto = muscleGroupInput.value === vecchio;
     const esercizioScelto = exerciseInput.value;
 
-    spostaGruppo(vecchio, check.valore);
+    spostaMemoria(prefisso(vecchio), prefisso(check.valore));
+    if (esercizioAperto && esercizioAperto.indexOf(prefisso(vecchio)) === 0) {
+      esercizioAperto = prefisso(check.valore) + esercizioAperto.slice(prefisso(vecchio).length);
+    }
     gruppo.gruppo = check.valore;
     salvaMenu('Gruppo rinominato', eraScelto ? check.valore : undefined, eraScelto ? esercizioScelto : undefined);
     return true;
   };
 
   const eliminaGruppo = (nome) => {
-    dimenticaGruppo(nome);
+    dimenticaMemoria(prefisso(nome));
     menu = menu.filter((voce) => voce.gruppo !== nome);
     salvaMenu('Gruppo rimosso');
   };
@@ -718,7 +758,13 @@
 
     const eraScelto = muscleGroupInput.value === nomeGruppo && exerciseInput.value === vecchio;
 
-    spostaSerie(nomeGruppo, vecchio, nomeGruppo, check.valore);
+    spostaMemoria(prefisso(nomeGruppo, vecchio), prefisso(nomeGruppo, check.valore));
+    if (possiede(gruppo.sottocategorie, vecchio)) {
+      const elenco = gruppo.sottocategorie[vecchio];
+      delete gruppo.sottocategorie[vecchio];
+      gruppo.sottocategorie[check.valore] = elenco;
+    }
+    if (esercizioAperto === prefisso(nomeGruppo, vecchio)) esercizioAperto = prefisso(nomeGruppo, check.valore);
     gruppo.esercizi[posizione] = check.valore;
     salvaMenu('Esercizio rinominato', undefined, eraScelto ? check.valore : undefined);
     return true;
@@ -727,9 +773,57 @@
   const eliminaEsercizio = (nomeGruppo, esercizio) => {
     const gruppo = trovaGruppo(nomeGruppo);
     if (!gruppo) return;
-    dimenticaSerie(nomeGruppo, esercizio);
+    dimenticaMemoria(prefisso(nomeGruppo, esercizio));
+    delete gruppo.sottocategorie[esercizio];
     gruppo.esercizi = gruppo.esercizi.filter((e) => e !== esercizio);
     salvaMenu('Esercizio rimosso');
+  };
+
+  // Le sottocategorie sono facoltative: l'elenco di un esercizio puo restare
+  // vuoto e allora la schermata Allenamento non chiede niente.
+  const aggiungiSottocategoria = (nomeGruppo, esercizio, nome) => {
+    const check = controllaNome(nome, 'Il nome della sottocategoria');
+    if (check.errore) return showStatus(exerciseStatus, 'error', check.errore), false;
+    const gruppo = trovaGruppo(nomeGruppo);
+    if (!gruppo || gruppo.esercizi.indexOf(esercizio) === -1) return false;
+    const elenco = sottocategorieDi(gruppo, esercizio);
+    if (elenco.some((s) => uguali(s, check.valore))) {
+      return showStatus(exerciseStatus, 'error', 'Questa sottocategoria esiste gia'), false;
+    }
+    gruppo.sottocategorie[esercizio] = elenco.concat(check.valore);
+    salvaMenu('Sottocategoria aggiunta');
+    return true;
+  };
+
+  const rinominaSottocategoria = (nomeGruppo, esercizio, vecchio, nuovo) => {
+    const check = controllaNome(nuovo, 'Il nome della sottocategoria');
+    if (check.errore) return showStatus(exerciseStatus, 'error', check.errore), false;
+    const gruppo = trovaGruppo(nomeGruppo);
+    const elenco = sottocategorieDi(gruppo, esercizio);
+    const posizione = elenco.indexOf(vecchio);
+    if (posizione === -1) return false;
+    if (elenco.some((s) => s !== vecchio && uguali(s, check.valore))) {
+      return showStatus(exerciseStatus, 'error', 'Esiste gia una sottocategoria con questo nome'), false;
+    }
+
+    const eraScelta = muscleGroupInput.value === nomeGruppo && exerciseInput.value === esercizio &&
+      subcategoryInput.value === vecchio;
+
+    spostaMemoria(prefisso(nomeGruppo, esercizio, vecchio), prefisso(nomeGruppo, esercizio, check.valore));
+    elenco[posizione] = check.valore;
+    salvaMenu('Sottocategoria rinominata', undefined, undefined, eraScelta ? check.valore : undefined);
+    return true;
+  };
+
+  const eliminaSottocategoria = (nomeGruppo, esercizio, nome) => {
+    const gruppo = trovaGruppo(nomeGruppo);
+    const elenco = sottocategorieDi(gruppo, esercizio);
+    if (elenco.indexOf(nome) === -1) return;
+    dimenticaMemoria(prefisso(nomeGruppo, esercizio, nome));
+    const rimaste = elenco.filter((s) => s !== nome);
+    if (rimaste.length) gruppo.sottocategorie[esercizio] = rimaste;
+    else delete gruppo.sottocategorie[esercizio];
+    salvaMenu('Sottocategoria rimossa');
   };
 
   /* --------------------- ultima serie di ogni esercizio (solo locale) */
@@ -737,67 +831,93 @@
   // Il foglio resta lo storico buono: questa memoria serve soltanto a
   // riproporre i numeri gia usati, cosi scegliendo un esercizio i campi
   // arrivano gia compilati e di solito basta premere Salva.
-  const chiaveSerie = (gruppo, esercizio) => gruppo + '\u0000' + esercizio;
+  //
+  // Una voce per ogni gruppo + esercizio + sottocategoria (vuota se non c'e).
+  // Le parti sono separate da \u0000, che da tastiera non si puo scrivere, e
+  // la chiave finisce con il separatore: cosi prefisso(gruppo, esercizio)
+  // prende tutte le sottocategorie di quell'esercizio e nient'altro.
+  const prefisso = (...parti) => parti.join('\u0000') + '\u0000';
+  const chiaveSerie = (gruppo, esercizio, sottocategoria) => prefisso(gruppo, esercizio, sottocategoria || '');
 
   let ultimeSerie = (() => {
+    const pulite = Object.create(null);
+    let dati;
     try {
-      const dati = JSON.parse(store.get(CHIAVE_ULTIME) || '{}');
-      return dati && typeof dati === 'object' && !Array.isArray(dati) ? dati : {};
+      dati = JSON.parse(store.get(CHIAVE_ULTIME) || '{}');
     } catch (e) {
-      return {};
+      return pulite;
     }
+    if (!dati || typeof dati !== 'object' || Array.isArray(dati)) return pulite;
+
+    // Le versioni precedenti usavano solo gruppo + esercizio: si leggono ancora.
+    Object.keys(dati).forEach((chiave) => {
+      const parti = chiave.split('\u0000');
+      const serie = dati[chiave];
+      if (parti.length < 2 || !parti[0] || !parti[1] || !serie || typeof serie !== 'object') return;
+      pulite[chiaveSerie(parti[0], parti[1], parti[2])] = serie;
+    });
+    return pulite;
   })();
 
   const scriviUltimeSerie = () => store.set(CHIAVE_ULTIME, JSON.stringify(ultimeSerie));
 
+  // ordine dice quale voce e piu recente, anche fra sottocategorie diverse.
+  const ordineMassimo = () => Object.keys(ultimeSerie)
+    .reduce((massimo, chiave) => Math.max(massimo, Number(ultimeSerie[chiave].ordine) || 0), 0);
+
   const ricordaSerie = (payload) => {
     if (!payload.gruppoMuscolare || !payload.esercizio) return;
-    ultimeSerie[chiaveSerie(payload.gruppoMuscolare, payload.esercizio)] = {
+    ultimeSerie[chiaveSerie(payload.gruppoMuscolare, payload.esercizio, payload.sottocategoria)] = {
       ripetizioni: payload.ripetizioni,
       set: payload.set,
       peso: payload.peso,
       mono: payload.mono === true,
-      data: payload.data
+      data: payload.data,
+      ordine: ordineMassimo() + 1
     };
     scriviUltimeSerie();
   };
 
   // Rinominare o cancellare una voce del menu non deve lasciare in giro
   // ricordi orfani: la memoria segue il nome.
-  const spostaSerie = (daGruppo, daEsercizio, aGruppo, aEsercizio) => {
-    const vecchia = chiaveSerie(daGruppo, daEsercizio);
-    if (!Object.prototype.hasOwnProperty.call(ultimeSerie, vecchia)) return;
-    ultimeSerie[chiaveSerie(aGruppo, aEsercizio)] = ultimeSerie[vecchia];
-    delete ultimeSerie[vecchia];
-    scriviUltimeSerie();
-  };
-
-  const spostaGruppo = (vecchio, nuovo) => {
-    const prefisso = vecchio + '\u0000';
+  const spostaMemoria = (vecchio, nuovo) => {
     Object.keys(ultimeSerie).forEach((chiave) => {
-      if (chiave.indexOf(prefisso) !== 0) return;
-      ultimeSerie[nuovo + '\u0000' + chiave.slice(prefisso.length)] = ultimeSerie[chiave];
+      if (chiave.indexOf(vecchio) !== 0) return;
+      ultimeSerie[nuovo + chiave.slice(vecchio.length)] = ultimeSerie[chiave];
       delete ultimeSerie[chiave];
     });
     scriviUltimeSerie();
   };
 
-  const dimenticaSerie = (gruppo, esercizio) => {
-    delete ultimeSerie[chiaveSerie(gruppo, esercizio)];
-    scriviUltimeSerie();
-  };
-
-  const dimenticaGruppo = (gruppo) => {
-    const prefisso = gruppo + '\u0000';
+  const dimenticaMemoria = (inizio) => {
     Object.keys(ultimeSerie).forEach((chiave) => {
-      if (chiave.indexOf(prefisso) === 0) delete ultimeSerie[chiave];
+      if (chiave.indexOf(inizio) === 0) delete ultimeSerie[chiave];
     });
     scriviUltimeSerie();
   };
 
+  // La sottocategoria usata l'ultima volta per questo esercizio, purche
+  // esista ancora nel menu. '' se l'ultima volta non ce n'era una.
+  const ultimaSottocategoria = (gruppo, esercizio) => {
+    const inizio = prefisso(gruppo, esercizio);
+    const elenco = sottocategorieDi(trovaGruppo(gruppo), esercizio);
+    let scelta = '';
+    let ordine = -1;
+    Object.keys(ultimeSerie).forEach((chiave) => {
+      if (chiave.indexOf(inizio) !== 0) return;
+      const sottocategoria = chiave.slice(inizio.length, -1);
+      const questo = Number(ultimeSerie[chiave].ordine) || 0;
+      if (questo > ordine && (sottocategoria === '' || elenco.indexOf(sottocategoria) !== -1)) {
+        ordine = questo;
+        scelta = sottocategoria;
+      }
+    });
+    return scelta;
+  };
+
   const serieRicordata = () => {
     if (!muscleGroupInput.value || !exerciseInput.value) return null;
-    const serie = ultimeSerie[chiaveSerie(muscleGroupInput.value, exerciseInput.value)];
+    const serie = ultimeSerie[chiaveSerie(muscleGroupInput.value, exerciseInput.value, subcategoryInput.value)];
     return serie && typeof serie === 'object' ? serie : null;
   };
 
@@ -843,12 +963,14 @@
 
   /* -------------------------------------- menu a tendina (prima schermata) */
 
-  const riempiSelect = (select, valori, testoSegnaposto, selezionato) => {
+  // facoltativo: la voce vuota e una scelta valida ("Nessuna") e non solo
+  // l'invito a scegliere.
+  const riempiSelect = (select, valori, testoSegnaposto, selezionato, facoltativo) => {
     select.innerHTML = '';
 
     const segnaposto = document.createElement('option');
     segnaposto.value = '';
-    segnaposto.disabled = true;
+    segnaposto.disabled = !facoltativo;
     segnaposto.textContent = testoSegnaposto;
     select.appendChild(segnaposto);
 
@@ -885,6 +1007,19 @@
     riempiSelect(exerciseInput, esercizi, segnaposto, selezione === undefined ? exerciseInput.value : selezione);
   };
 
+  // Un esercizio senza sottocategorie non mostra il campo: si fa in un modo
+  // solo e non c'e niente da ricordare.
+  const disegnaMenuSottocategorie = (selezione) => {
+    const elenco = sottocategorieDi(trovaGruppo(muscleGroupInput.value), exerciseInput.value);
+    riempiSelect(subcategoryInput, elenco, 'Nessuna', selezione === undefined ? subcategoryInput.value : selezione, true);
+    subcategoryField.hidden = elenco.length === 0;
+  };
+
+  // Scegliendo un esercizio si riparte dalla sottocategoria usata l'ultima volta.
+  const proponiSottocategoria = () => {
+    disegnaMenuSottocategorie(ultimaSottocategoria(muscleGroupInput.value, exerciseInput.value));
+  };
+
   /* ----------------------------- editor del menu (seconda schermata) */
 
   const bottoneIcona = (etichetta, simbolo, classe, azione) => {
@@ -897,37 +1032,48 @@
     return button;
   };
 
-  const rigaEsercizio = (nomeGruppo, esercizio) => {
-    const item = document.createElement('li');
+  // Una riga con nome, rinomina ed elimina: la usano sia gli esercizi sia le
+  // sottocategorie. opzioni.dettaglio e una riga grigia sotto il nome,
+  // opzioni.extra un bottone in piu prima di rinomina ed elimina.
+  const rigaModificabile = (nome, opzioni) => {
+    const riga = document.createElement('div');
+    riga.className = 'item-row';
 
     const vista = () => {
-      item.innerHTML = '';
-      const nome = document.createElement('span');
-      nome.className = 'exercise-name';
-      nome.textContent = esercizio;
+      riga.innerHTML = '';
+      const testo = document.createElement('span');
+      testo.className = 'exercise-name';
+      testo.textContent = nome;
+      if (opzioni.dettaglio) {
+        const dettaglio = document.createElement('small');
+        dettaglio.className = 'item-detail';
+        dettaglio.textContent = opzioni.dettaglio;
+        testo.appendChild(dettaglio);
+      }
 
       const azioni = document.createElement('span');
       azioni.className = 'row-actions';
+      if (opzioni.extra) azioni.appendChild(opzioni.extra);
       azioni.append(
-        bottoneIcona('Rinomina ' + esercizio, '✏️', 'edit', modifica),
-        bottoneIcona('Elimina ' + esercizio, '🗑️', 'danger', () => eliminaEsercizio(nomeGruppo, esercizio))
+        bottoneIcona('Rinomina ' + nome, '✏️', 'edit', modifica),
+        bottoneIcona('Elimina ' + nome, '🗑️', 'danger', opzioni.elimina)
       );
 
-      item.append(nome, azioni);
+      riga.append(testo, azioni);
     };
 
     const modifica = () => {
-      item.innerHTML = '';
+      riga.innerHTML = '';
       const input = document.createElement('input');
       input.type = 'text';
       input.maxLength = LUNGHEZZA_MAX;
-      input.value = esercizio;
-      input.setAttribute('aria-label', 'Nuovo nome per ' + esercizio);
+      input.value = nome;
+      input.setAttribute('aria-label', 'Nuovo nome per ' + nome);
 
       const conferma = () => {
         const nuovo = input.value.trim();
-        if (!nuovo || nuovo === esercizio) { vista(); return; }
-        if (!rinominaEsercizio(nomeGruppo, esercizio, nuovo)) input.focus();
+        if (!nuovo || nuovo === nome) { vista(); return; }
+        if (!opzioni.rinomina(nuovo)) input.focus();
       };
 
       input.addEventListener('keydown', (e) => {
@@ -938,16 +1084,112 @@
       const azioni = document.createElement('span');
       azioni.className = 'row-actions';
       azioni.append(
-        bottoneIcona('Salva ' + esercizio, '✓', 'confirm', conferma),
+        bottoneIcona('Salva ' + nome, '✓', 'confirm', conferma),
         bottoneIcona('Annulla modifica', '✕', 'cancel', vista)
       );
 
-      item.append(input, azioni);
+      riga.append(input, azioni);
       input.focus();
       input.select();
     };
 
     vista();
+    return riga;
+  };
+
+  // Campo + bottone per aggiungere una voce. Dopo un'aggiunta riuscita
+  // l'editor viene ridisegnato: il campo nuovo riprende il fuoco, cosi si
+  // possono inserire piu voci di fila senza richiudere la tastiera.
+  const rigaAggiungi = (segnaposto, etichetta, chiave, aggiungi) => {
+    const riga = document.createElement('div');
+    riga.className = 'add-row';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = LUNGHEZZA_MAX;
+    input.placeholder = segnaposto;
+    input.dataset.aggiungi = chiave;
+    input.setAttribute('aria-label', etichetta);
+
+    const bottone = document.createElement('button');
+    bottone.type = 'button';
+    bottone.textContent = 'Aggiungi';
+
+    const conferma = () => {
+      const nome = input.value.trim();
+      if (!nome) { input.focus(); return; }
+      if (!aggiungi(nome)) { input.focus(); return; }
+      const nuovo = Array.prototype.filter.call(
+        exerciseGroups.querySelectorAll('input[data-aggiungi]'),
+        (campo) => campo.dataset.aggiungi === chiave
+      )[0];
+      if (nuovo) nuovo.focus();
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); conferma(); }
+    });
+    bottone.addEventListener('click', conferma);
+
+    riga.append(input, bottone);
+    return riga;
+  };
+
+  // Un solo esercizio alla volta mostra le sue sottocategorie.
+  let esercizioAperto = null;
+
+  const pannelloSottocategorie = (voce, esercizio) => {
+    const pannello = document.createElement('div');
+    pannello.className = 'sub-panel';
+
+    const elenco = sottocategorieDi(voce, esercizio);
+    if (elenco.length) {
+      const lista = document.createElement('ul');
+      lista.className = 'sub-list';
+      elenco.forEach((nome) => {
+        const item = document.createElement('li');
+        item.appendChild(rigaModificabile(nome, {
+          rinomina: (nuovo) => rinominaSottocategoria(voce.gruppo, esercizio, nome, nuovo),
+          elimina: () => eliminaSottocategoria(voce.gruppo, esercizio, nome)
+        }));
+        lista.appendChild(item);
+      });
+      pannello.appendChild(lista);
+    } else {
+      const vuoto = document.createElement('p');
+      vuoto.className = 'group-empty';
+      vuoto.textContent = 'Facoltative: aggiungile se fai questo esercizio con attrezzi diversi.';
+      pannello.appendChild(vuoto);
+    }
+
+    pannello.appendChild(rigaAggiungi(
+      'Nuova sottocategoria',
+      'Nuova sottocategoria per ' + esercizio,
+      'sotto' + prefisso(voce.gruppo, esercizio),
+      (nome) => aggiungiSottocategoria(voce.gruppo, esercizio, nome)
+    ));
+    return pannello;
+  };
+
+  const rigaEsercizio = (voce, esercizio) => {
+    const item = document.createElement('li');
+    const chiave = prefisso(voce.gruppo, esercizio);
+    const aperto = esercizioAperto === chiave;
+
+    const apri = bottoneIcona('Sottocategorie di ' + esercizio, aperto ? '▴' : '▾', 'toggle', () => {
+      esercizioAperto = aperto ? null : chiave;
+      disegnaEditor();
+    });
+    apri.setAttribute('aria-expanded', String(aperto));
+
+    item.appendChild(rigaModificabile(esercizio, {
+      dettaglio: sottocategorieDi(voce, esercizio).join(' · '),
+      extra: apri,
+      rinomina: (nuovo) => rinominaEsercizio(voce.gruppo, esercizio, nuovo),
+      elimina: () => eliminaEsercizio(voce.gruppo, esercizio)
+    }));
+
+    if (aperto) item.appendChild(pannelloSottocategorie(voce, esercizio));
     return item;
   };
 
@@ -1015,7 +1257,7 @@
     if (voce.esercizi.length) {
       const lista = document.createElement('ul');
       lista.className = 'exercise-list';
-      voce.esercizi.forEach((esercizio) => lista.appendChild(rigaEsercizio(voce.gruppo, esercizio)));
+      voce.esercizi.forEach((esercizio) => lista.appendChild(rigaEsercizio(voce, esercizio)));
       card.appendChild(lista);
     } else {
       const vuoto = document.createElement('p');
@@ -1024,32 +1266,12 @@
       card.appendChild(vuoto);
     }
 
-    const riga = document.createElement('div');
-    riga.className = 'add-row';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.maxLength = LUNGHEZZA_MAX;
-    input.placeholder = 'Nuovo esercizio';
-    input.setAttribute('aria-label', 'Nuovo esercizio per ' + voce.gruppo);
-
-    const bottone = document.createElement('button');
-    bottone.type = 'button';
-    bottone.textContent = 'Aggiungi';
-
-    const conferma = () => {
-      const nome = input.value.trim();
-      if (!nome) { input.focus(); return; }
-      if (!aggiungiEsercizio(voce.gruppo, nome)) input.focus();
-    };
-
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); conferma(); }
-    });
-    bottone.addEventListener('click', conferma);
-
-    riga.append(input, bottone);
-    card.appendChild(riga);
+    card.appendChild(rigaAggiungi(
+      'Nuovo esercizio',
+      'Nuovo esercizio per ' + voce.gruppo,
+      'esercizio' + prefisso(voce.gruppo),
+      (nome) => aggiungiEsercizio(voce.gruppo, nome)
+    ));
 
     return card;
   };
@@ -1079,9 +1301,10 @@
     catalogNotice.classList.remove('visible');
   };
 
-  const disegnaTutto = (selGruppo, selEsercizio) => {
+  const disegnaTutto = (selGruppo, selEsercizio, selSottocategoria) => {
     disegnaMenuGruppi(selGruppo);
     disegnaMenuEsercizi(selEsercizio);
+    disegnaMenuSottocategorie(selSottocategoria);
     disegnaEditor();
     aggiornaAvviso();
     mostraSuggerimento();
@@ -1258,10 +1481,16 @@
 
   muscleGroupInput.addEventListener('change', () => {
     disegnaMenuEsercizi('');
+    disegnaMenuSottocategorie('');
     mostraSuggerimento();
   });
 
-  exerciseInput.addEventListener('change', applicaUltimaSerie);
+  exerciseInput.addEventListener('change', () => {
+    proponiSottocategoria();
+    applicaUltimaSerie();
+  });
+
+  subcategoryInput.addEventListener('change', applicaUltimaSerie);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1270,6 +1499,7 @@
       data: dateInput.value,
       gruppoMuscolare: muscleGroupInput.value,
       esercizio: exerciseInput.value,
+      sottocategoria: subcategoryField.hidden ? '' : subcategoryInput.value,
       ripetizioni: repetitionsInput.value,
       set: setsInput.value,
       peso: weightInput.value,
@@ -1299,6 +1529,7 @@
 
       // Data e gruppo restano: di solito segue un altro esercizio dello stesso gruppo.
       disegnaMenuEsercizi('');
+      disegnaMenuSottocategorie('');
       mostraSuggerimento();
       repetitionsInput.value = '';
       setsInput.value = '';

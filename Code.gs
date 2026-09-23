@@ -18,18 +18,26 @@ const CONFIG = {
   sheetName: 'Allenamenti'
 };
 
+// Cresce quando cambia cio che il foglio sa salvare: l'app la legge nelle
+// risposte e avvisa se lo script pubblicato e rimasto indietro.
+const VERSIONE = 2;
+
 const CONFIG_SHEET_NAME = 'Configurazione';
 const CONFIG_MAX_CARATTERI = 45000; // una cella di Sheets ne regge 50.000
 
-const HEADERS = [
-  'Data',
-  'Gruppo muscolare',
-  'Esercizio',
-  'Ripetizioni',
-  'Set',
-  'Peso (kg)',
-  'Mono',
-  'Commento'
+// Le colonne del foglio, nell'ordine in cui vengono create. La riga si scrive
+// cercando ogni titolo nell'intestazione, non per posizione: cosi una colonna
+// nuova si puo aggiungere senza toccare le righe gia scritte.
+const COLONNE = [
+  { titolo: 'Data',             valore: (p) => text(p.data) },
+  { titolo: 'Gruppo muscolare', valore: (p) => text(p.gruppoMuscolare) },
+  { titolo: 'Esercizio',        valore: (p) => text(p.esercizio) },
+  { titolo: 'Sottocategoria',   valore: (p) => text(p.sottocategoria) },
+  { titolo: 'Ripetizioni',      valore: (p) => numeroOppureTesto(p.ripetizioni) },
+  { titolo: 'Set',              valore: (p) => numeroOppureTesto(p.set) },
+  { titolo: 'Peso (kg)',        valore: (p) => numeroOppureTesto(p.peso) },
+  { titolo: 'Mono',             valore: (p) => booleano(p.mono) },
+  { titolo: 'Commento',         valore: (p) => text(p.commento) }
 ];
 
 function doGet(event) {
@@ -74,19 +82,16 @@ function doPost(event) {
       return jsonResponse({ result: 'success', message: 'Configurazione salvata' });
     }
 
-    const row = buildRow(payload);
-
     const lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
       const sheet = getSheet();
-      ensureHeaders(sheet);
-      sheet.appendRow(row);
+      sheet.appendRow(buildRow(payload, ensureHeaders(sheet)));
     } finally {
       lock.releaseLock();
     }
 
-    return jsonResponse({ result: 'success', message: 'Serie salvata' });
+    return jsonResponse({ result: 'success', message: 'Serie salvata', versione: VERSIONE });
   } catch (error) {
     console.error(error);
     return errorResponse(error);
@@ -94,25 +99,26 @@ function doPost(event) {
 }
 
 /**
- * Costruisce la riga da scrivere. Gruppo muscolare ed esercizio non vengono
- * filtrati: passano cosi come li manda l'app. Ripetizioni, set e peso restano
- * numeri quando sono numeri, cosi il foglio puo fare somme e medie.
+ * Costruisce la riga da scrivere, mettendo ogni valore sotto la sua colonna.
+ * Gruppo muscolare, esercizio e sottocategoria non vengono filtrati: passano
+ * cosi come li manda l'app. Ripetizioni, set e peso restano numeri quando
+ * sono numeri, cosi il foglio puo fare somme e medie.
  */
-function buildRow(payload) {
-  return [
-    text(payload.data),
-    text(payload.gruppoMuscolare),
-    text(payload.esercizio),
-    numeroOppureTesto(payload.ripetizioni),
-    numeroOppureTesto(payload.set),
-    numeroOppureTesto(payload.peso),
-    payload.mono === true || String(payload.mono).toLowerCase() === 'true',
-    text(payload.commento)
-  ];
+function buildRow(payload, posizioni) {
+  const row = [];
+  for (let i = 0; i < Math.max.apply(null, posizioni); i++) row.push('');
+  COLONNE.forEach((colonna, i) => {
+    row[posizioni[i] - 1] = colonna.valore(payload);
+  });
+  return row;
 }
 
 function text(value) {
   return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function booleano(value) {
+  return value === true || String(value).trim().toLowerCase() === 'true';
 }
 
 function numeroOppureTesto(value) {
@@ -169,11 +175,54 @@ function getSheet() {
   return spreadsheet.getSheetByName(CONFIG.sheetName) || spreadsheet.insertSheet(CONFIG.sheetName);
 }
 
+/**
+ * Garantisce che l'intestazione contenga tutte le COLONNE e restituisce, per
+ * ognuna, il numero di colonna (da 1) in cui sta nel foglio.
+ *
+ * Un foglio creato da una versione precedente non ha le colonne aggiunte dopo:
+ * ciascuna viene inserita subito a destra di quella che la precede
+ * nell'elenco. Le righe gia scritte scorrono insieme e si ritrovano con la
+ * cella nuova vuota, che e il valore giusto per il passato.
+ */
 function ensureHeaders(sheet) {
   if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    sheet.getRange(1, 1, 1, COLONNE.length).setValues([COLONNE.map((c) => c.titolo)]);
     sheet.setFrozenRows(1);
   }
+
+  let intestazioni = leggiIntestazioni(sheet);
+
+  COLONNE.forEach((colonna, i) => {
+    if (cercaColonna(intestazioni, colonna.titolo) !== -1) return;
+
+    let precedente = -1;
+    for (let j = i - 1; j >= 0 && precedente === -1; j--) {
+      precedente = cercaColonna(intestazioni, COLONNE[j].titolo);
+    }
+
+    if (precedente === -1) sheet.insertColumnBefore(1);
+    else sheet.insertColumnAfter(precedente + 1);
+    sheet.getRange(1, precedente + 2).setValue(colonna.titolo);
+    intestazioni = leggiIntestazioni(sheet);
+  });
+
+  return COLONNE.map((colonna) => cercaColonna(intestazioni, colonna.titolo) + 1);
+}
+
+function leggiIntestazioni(sheet) {
+  const larghezza = sheet.getLastColumn();
+  if (larghezza === 0) return [];
+  return sheet.getRange(1, 1, 1, larghezza).getValues()[0].map(text);
+}
+
+// Posizione (da 0) del titolo nell'intestazione, senza badare a maiuscole e
+// spazi: un "peso (KG) " scritto a mano resta la stessa colonna.
+function cercaColonna(intestazioni, titolo) {
+  const cercato = titolo.toLowerCase();
+  for (let i = 0; i < intestazioni.length; i++) {
+    if (intestazioni[i].toLowerCase() === cercato) return i;
+  }
+  return -1;
 }
 
 function jsonResponse(body) {

@@ -36,7 +36,7 @@ Use this agent for tasks such as:
 
 ## Important constraints
 
-- The sheet expects exact headers in [Code.gs](../../Code.gs): Data, Gruppo muscolare, Esercizio, Ripetizioni, Set, Peso (kg), Mono, Commento.
+- The sheet columns are listed in `COLONNE` in [Code.gs](../../Code.gs): Data, Gruppo muscolare, Esercizio, Sottocategoria, Ripetizioni, Set, Peso (kg), Mono, Commento. Values are written by header title, and a missing column is inserted automatically next to its predecessor, so older sheets migrate without shifting existing rows.
 - Fields like date, muscle group, exercise, repetitions, and sets are required.
 - Weight is optional and must remain numeric when provided.
 - The app is intended to be installed and used from mobile devices, so keep keyboard and touch ergonomics in mind.
