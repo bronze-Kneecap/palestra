@@ -2,12 +2,13 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Allenamento Log</title>
 <meta name="description" content="Registra rapidamente esercizi e ripetizioni durante l'allenamento.">
+<meta name="color-scheme" content="dark">
 
 <!-- Tema browser -->
-<meta name="theme-color" content="#161A20">
+<meta name="theme-color" content="#000000">
 
 <!-- iOS: esecuzione a schermo intero come app -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,347 +20,92 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-
 <style>
+  /* Tema scuro sullo stile delle app Apple (Orologio, Promemoria): nero
+     puro, schede grigio scuro, un solo colore d'accento. I grigi del testo
+     sono scelti per restare sopra 4,5:1 di contrasto sulle schede. */
   :root {
-    --bg: #161A20;
-    --text: #EDEDE6;
-    --muted: #8A8F98;
-    --line: #333A44;
-    --accent: #4C7BFF;
-    --success: #4CD787;
-    --error: #FF6B6B;
-    --warning: #E0B341;
-    --nav-height: 64px;
+    color-scheme: dark;
+    --bg: #000000;
+    --card: #1C1C1E;
+    --card-2: #2C2C2E;
+    --fill: rgba(120, 120, 128, 0.24);
+    --label: #FFFFFF;
+    --label-2: #98989F;
+    --label-3: #7C7C80;
+    --sep: #38383A;
+    --accent: #0A84FF;
+    --success: #30D158;
+    --error: #FF453A;
+    --warning: #FF9F0A;
+    --bar: #121214;
+    --radius: 12px;
+    --nav-height: 52px;
+
+    /* Colori dei gruppi muscolari (colori di sistema iOS) e, per ciascuno,
+       il testo che ci va sopra: il nero ha piu contrasto su tutti tranne
+       l'indaco. */
+    --c-rosso: #FF453A;     --on-rosso: #000;
+    --c-arancione: #FF9F0A; --on-arancione: #000;
+    --c-giallo: #FFD60A;    --on-giallo: #000;
+    --c-verde: #30D158;     --on-verde: #000;
+    --c-menta: #63E6E2;     --on-menta: #000;
+    --c-azzurro: #64D2FF;   --on-azzurro: #000;
+    --c-blu: #0A84FF;       --on-blu: #000;
+    --c-indaco: #5E5CE6;    --on-indaco: #FFF;
+    --c-viola: #BF5AF2;     --on-viola: #000;
+    --c-rosa: #FF375F;      --on-rosa: #000;
+    --c-marrone: #AC8E68;   --on-marrone: #000;
+    --c-grigio: #98989D;    --on-grigio: #000;
   }
 
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); }
 
   body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--label);
+    font: 17px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 
+  button, input, select, textarea { font: inherit; color: inherit; margin: 0; }
+  button { background: none; border: 0; padding: 0; cursor: pointer; }
+  button:disabled { cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input::placeholder, textarea::placeholder { color: var(--label-3); opacity: 1; }
+
+  .icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* L'app occupa l'area visibile: con la tastiera aperta lo script ne riduce
+     l'altezza, cosi la barra in basso sale sopra la tastiera. */
   .app {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    max-width: 480px;
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    height: 100dvh;
-    max-width: 420px;
-    margin: 0 auto;
   }
 
-  header { margin-bottom: 32px; }
+  /* ------------------------------------------------ schermate e barra */
 
-  h1 {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 2rem;
-    letter-spacing: -0.02em;
-    margin: 0 0 4px;
-  }
-
-  .subtitle { margin: 0; color: var(--muted); font-size: 0.95rem; }
-
-  .field { margin-bottom: 28px; }
-
-  label {
-    display: block;
-    font-size: 0.8rem;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-
-  input {
-    width: 100%;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid var(--line);
-    color: var(--text);
-    font-size: 1.25rem;
-    padding: 8px 2px;
-    font-family: inherit;
-    transition: border-color 0.2s;
-  }
-
-  textarea {
-    width: 100%;
-    min-height: 84px;
-    resize: vertical;
-    background: transparent;
-    border: 2px solid var(--line);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 1rem;
-    padding: 10px;
-    font-family: inherit;
-    transition: border-color 0.2s;
-  }
-
-  select {
-    width: 100%;
-    appearance: none;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid var(--line);
-    color: var(--text);
-    font-size: 1.1rem;
-    padding: 8px 2px;
-    font-family: inherit;
-    transition: border-color 0.2s;
-  }
-
-  select:focus {
-    outline: none;
-    border-bottom-color: var(--accent);
-  }
-
-  select:disabled { color: var(--muted); opacity: 1; }
-
-  input:focus {
-    outline: none;
-    border-bottom-color: var(--accent);
-  }
-
-  textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  .weight-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 20px;
-  }
-
-  .weight-row > label:first-child { flex: 1; }
-
-  .checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-bottom: 10px;
-    color: var(--text);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .checkbox-label input {
-    width: 18px;
-    height: 18px;
-    margin: 0;
-    accent-color: var(--accent);
-  }
-
-  .toggle-btn {
-    width: auto;
-    min-height: 40px;
-    padding: 8px 16px;
-    background: transparent;
-    border: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 0.9rem;
-  }
-  .toggle-btn[aria-pressed="true"] { border-color: var(--warning); color: var(--warning); }
-  form.esplosiva #submitBtn { background: var(--warning); }
-
-  input::placeholder,
-  textarea::placeholder { color: #4A505A; }
-
-  button {
-    width: 100%;
-    min-height: 52px;
-    padding: 16px;
-    border: none;
-    border-radius: 999px;
-    background: var(--accent);
-    color: #0B0D11;
-    font-size: 1rem;
-    font-weight: 700;
-    font-family: 'Space Grotesk', sans-serif;
-    cursor: pointer;
-    transition: opacity 0.2s, transform 0.1s;
-  }
-
-  button:active { transform: scale(0.98); }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
-
-  #status, #exerciseStatus, #endpointStatus {
-    text-align: center;
-    min-height: 20px;
-    margin-top: 16px;
-    font-size: 0.9rem;
-    overflow-wrap: anywhere;
-  }
-  /* Riga discreta sotto l'esercizio: cosa si e fatto l'ultima volta */
-  .hint {
-    display: none;
-    margin: 8px 0 0;
-    font-size: 0.8rem;
-    line-height: 1.4;
-    color: var(--muted);
-  }
-  .hint.visible { display: block; }
-
-  .sync {
-    margin: 10px 0 0;
-    font-size: 0.8rem;
-    color: var(--muted);
-    min-height: 18px;
-  }
-  .sync.attesa { color: var(--warning); }
-
-  .pending { color: var(--muted); }
-  .success { color: var(--success); }
-  .error { color: var(--error); }
-
-  /* Avviso mostrato quando i menu non arrivano da Google Sheets */
-  .notice {
-    display: none;
-    align-items: center;
-    gap: 12px;
-    border: 1px solid var(--error);
-    border-radius: 12px;
-    padding: 12px 14px;
-    margin-bottom: 24px;
-    color: var(--error);
-    font-size: 0.85rem;
-    line-height: 1.4;
-  }
-  .notice.visible { display: flex; }
-  .notice p { margin: 0; flex: 1; }
-  .notice button {
-    width: auto;
-    min-height: 36px;
-    padding: 8px 14px;
-    font-size: 0.8rem;
-    border-radius: 8px;
-    flex-shrink: 0;
-  }
-
-  /* Seconda schermata: una card per ogni gruppo del menu */
-  .group-card {
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 14px;
-    margin-bottom: 16px;
-  }
-
-  .group-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .group-name {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 1.05rem;
-    overflow-wrap: anywhere;
-  }
-
-  .group-header input { flex: 1; min-width: 0; font-size: 1.05rem; }
-  .group-empty { margin: 10px 0 0; color: var(--muted); font-size: 0.85rem; }
-
-  .exercise-list, .sub-list { margin: 8px 0 0; padding: 0; list-style: none; }
-  .exercise-list > li {
-    font-size: 0.95rem;
-    padding: 8px 0;
-    border-top: 1px solid var(--line);
-  }
-  .exercise-list > li:first-child { border-top: none; }
-  .item-row { display: flex; align-items: center; gap: 10px; }
-  .exercise-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-  .item-detail { display: block; margin-top: 2px; color: var(--muted); font-size: 0.8rem; }
-  .item-row input { flex: 1; min-width: 0; font-size: 0.95rem; padding: 4px 2px; }
-
-  .progress-row { display: flex; align-items: center; gap: 12px; }
-  .progress-value { flex-shrink: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .progress-toggle {
-    width: 100%;
-    min-height: 0;
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-  }
-  .progress-toggle:active { transform: none; opacity: 0.7; }
-  .chevron { color: var(--muted); flex-shrink: 0; }
-  .progress-subs { margin: 8px 0 2px 14px; padding-left: 12px; border-left: 2px solid var(--line); }
-
-  .sub-panel { margin: 10px 0 4px 14px; padding-left: 12px; border-left: 2px solid var(--line); }
-  .sub-list li { padding: 6px 0; font-size: 0.9rem; }
-
-  .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
-
-  .icon-button {
-    width: 36px;
-    min-height: 36px;
-    padding: 0;
-    border-radius: 8px;
-    background: transparent;
-    border: 1px solid var(--line);
-    color: var(--text);
-    font-size: 0.95rem;
-    line-height: 1;
-  }
-  .icon-button:active { transform: scale(0.94); }
-  .icon-button.danger { color: var(--error); border-color: var(--error); }
-  .icon-button.confirm { color: var(--success); border-color: var(--success); }
-
-  .add-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
-  .add-row label { margin: 0; }
-  .add-row input { flex: 1; min-width: 0; font-size: 0.95rem; }
-  .add-row button {
-    width: auto;
-    min-height: 40px;
-    padding: 0 16px;
-    font-size: 0.85rem;
-    border-radius: 8px;
-    flex-shrink: 0;
-  }
-
-  .settings {
-    margin-top: 28px;
-    border-top: 1px solid var(--line);
-    padding-top: 16px;
-  }
-  .settings summary {
-    color: var(--muted);
-    font-size: 0.85rem;
-    cursor: pointer;
-    list-style: none;
-  }
-  .settings summary::-webkit-details-marker { display: none; }
-  .settings summary::before { content: '⚙ '; }
-  .settings p { color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
-  .settings input { font-size: 0.85rem; }
-  .settings button.secondary {
-    width: 100%;
-    min-height: 44px;
-    padding: 12px;
-    font-size: 0.85rem;
-    border-radius: 8px;
-    background: transparent;
-    border: 1px solid var(--line);
-    color: var(--muted);
-  }
-
-  /* Schermate affiancate, navigabili con swipe o bottom nav */
   .screens-viewport {
     flex: 1;
+    min-height: 0;
     overflow: hidden;
     touch-action: pan-y;
   }
@@ -368,7 +114,7 @@
     display: flex;
     width: 300%;
     height: 100%;
-    transition: transform 0.3s ease;
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   .screen {
@@ -376,35 +122,503 @@
     height: 100%;
     flex-shrink: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     padding:
-      max(24px, env(safe-area-inset-top))
-      max(24px, env(safe-area-inset-right))
-      24px
-      max(24px, env(safe-area-inset-left));
+      max(12px, env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      32px
+      max(16px, env(safe-area-inset-left));
   }
 
-  .bottom-nav {
+  .tabbar {
     display: flex;
     flex-shrink: 0;
-    border-top: 1px solid var(--line);
+    background: var(--bar);
+    border-top: 0.5px solid var(--sep);
     padding-bottom: env(safe-area-inset-bottom);
-    background: var(--bg);
   }
 
   .nav-btn {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 3px;
     min-height: var(--nav-height);
-    padding: 8px 0;
-    border-radius: 0;
-    background: transparent;
-    color: var(--muted);
+    padding: 6px 0 4px;
+    color: var(--label-2);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  .nav-btn .icon { width: 26px; height: 26px; }
+  .nav-btn.active { color: var(--accent); }
+
+  /* Tastiera aperta: la barra resta visibile ma si fa compatta. */
+  .tastiera .tabbar { padding-bottom: 0; }
+  .tastiera .nav-btn { min-height: 44px; }
+  .tastiera .nav-btn span { display: none; }
+
+  /* ------------------------------------------------------ tipografia */
+
+  h1 {
+    font-size: 34px;
+    line-height: 41px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    margin: 8px 4px 6px;
   }
 
-  .nav-btn.active { color: var(--accent); }
-  .nav-icon { font-size: 1.7rem; line-height: 1; }
+  .sync {
+    margin: 0 4px 18px;
+    min-height: 18px;
+    font-size: 13px;
+    color: var(--label-2);
+  }
+  .sync.attesa { color: var(--warning); }
+
+  #status, #exerciseStatus, #endpointStatus {
+    min-height: 20px;
+    margin: 12px 4px 0;
+    font-size: 15px;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  #exerciseStatus { margin: -8px 4px 12px; }
+  #exerciseStatus:empty { display: none; }
+  #endpointStatus { text-align: left; margin: 8px 0 0; }
+
+  .pending { color: var(--label-2); }
+  .success { color: var(--success); }
+  .error { color: var(--error); }
+
+  /* ------------------------------------------------ schede e righe */
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    margin: 0 0 24px;
+    overflow: hidden;
+  }
+
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list > li { position: relative; }
+
+  .row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 16px;
+    text-align: left;
+  }
+
+  /* Separatori sottili che partono dal testo, come nelle liste iOS. */
+  .row + .row::before,
+  .list > li + li::before,
+  .card > .add-row:not(:first-child)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 0;
+    border-top: 0.5px solid var(--sep);
+  }
+
+  .row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .exercise-name { overflow-wrap: anywhere; }
+  .item-detail {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--label-2);
+    overflow-wrap: anywhere;
+  }
+
+  .chev { width: 18px; height: 18px; color: var(--label-3); transition: transform 0.2s; }
+  [aria-expanded="true"] > .chev { transform: rotate(90deg); }
+
+  .icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    color: var(--label-2);
+  }
+  .icon-btn:active { background: var(--fill); }
+  .icon-btn .icon { width: 20px; height: 20px; }
+  .icon-btn.danger { color: var(--error); }
+  .icon-btn.confirm { color: var(--accent); }
+
+  .text-btn {
+    flex-shrink: 0;
+    padding: 8px 2px;
+    color: var(--accent);
+    font-size: 17px;
+  }
+  .text-btn:active { opacity: 0.5; }
+
+  /* Avviso in cima alla prima schermata */
+  .notice {
+    display: none;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin: 0 0 20px;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+  .notice.visible { display: flex; }
+  .notice > .icon { color: var(--warning); margin-top: 1px; }
+  .notice p { margin: 0; flex: 1; }
+  .notice .text-btn { padding: 0; font-size: 15px; }
+
+  /* ------------------------------------- prima schermata: la serie */
+
+  /* Righe a scelta: il menu nativo (trasparente) copre tutta la riga, cosi
+     basta toccarla ovunque per aprirlo; il valore scelto e scritto a destra. */
+  .picker { cursor: pointer; }
+  .picker:active { background: var(--card-2); }
+  .picker:has(:focus-visible) { box-shadow: inset 0 0 0 2px var(--accent); }
+  .picker .row-label { flex: 1; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+  .row-value {
+    min-width: 0;
+    max-width: 62%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--label);
+  }
+  .row-value.vuoto { color: var(--label-2); }
+  .picker > .chev { margin-left: -6px; }
+  .picker select,
+  .picker input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    border: 0;
+    font-size: 17px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .picker select:disabled { cursor: default; }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--g, var(--fill));
+  }
+
+  /* Riga discreta sotto la scheda: cosa si e fatto l'ultima volta */
+  .hint {
+    display: none;
+    margin: -16px 16px 20px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--label-2);
+  }
+  .hint.visible { display: block; }
+
+  /* Tre numeri grandi affiancati, come i selettori di Orologio. Il grigio
+     chiaro e l'ultima serie (vale se il campo resta vuoto), il bianco e un
+     numero scritto adesso. */
+  .numbers { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .number {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 6px 8px;
+    cursor: text;
+  }
+  .number + .number::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 14px;
+    bottom: 14px;
+    border-left: 0.5px solid var(--sep);
+  }
+  .number:focus-within { background: var(--card-2); }
+  .number-label { font-size: 13px; color: var(--label-2); }
+  .number input {
+    width: 100%;
+    border: 0;
+    background: none;
+    padding: 2px 0 0;
+    text-align: center;
+    font-size: 34px;
+    line-height: 41px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .number input:focus { outline: none; }
+  .number input::-webkit-outer-spin-button,
+  .number input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .number input.suggerito::placeholder { color: var(--label-2); }
+
+  /* Interruttori a capsula: Mono ed Esplosiva */
+  .chips { display: flex; gap: 8px; margin: 0 0 24px; }
+  .chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 18px;
+    background: var(--fill);
+    color: var(--label);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background-color 0.2s, color 0.2s;
+  }
+  .chip .icon { width: 16px; height: 16px; stroke-width: 2; }
+  .chip input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+  .chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .chip:has(input:checked) { background: var(--label); color: #000; }
+  .chip[aria-pressed="true"] { background: var(--warning); color: #000; }
+
+  .comment textarea {
+    display: block;
+    width: 100%;
+    min-height: 72px;
+    resize: none;
+    border: 0;
+    background: none;
+    padding: 12px 16px;
+    font-size: 17px;
+  }
+  .comment textarea:focus { outline: none; }
+  .comment:focus-within { box-shadow: inset 0 0 0 2px var(--card-2); }
+
+  /* Il bottone principale prende il colore del gruppo scelto; senza gruppo
+     e bianco. Una serie esplosiva lo colora di arancione. */
+  .primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 52px;
+    border-radius: 26px;
+    background: var(--g, var(--label));
+    color: var(--g-on, #000);
+    font-size: 17px;
+    font-weight: 600;
+    transition: transform 0.1s, opacity 0.2s, background-color 0.2s;
+  }
+  .primary .icon { width: 18px; height: 18px; fill: currentColor; stroke: none; }
+  .primary:active { transform: scale(0.98); opacity: 0.85; }
+  .primary:disabled { opacity: 0.4; transform: none; }
+  form.esplosiva .primary { background: var(--warning); color: #000; }
+
+  /* ------------------------------ seconda schermata: i menu */
+
+  .add-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 2px 16px;
+  }
+  .add-row > .icon { color: var(--g, var(--accent)); }
+  .add-row input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: none;
+    padding: 10px 0;
+    font-size: 17px;
+  }
+  .add-row input:focus { outline: none; }
+  .add-row input:placeholder-shown + .text-btn { display: none; }
+
+  .group { margin-bottom: 28px; }
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    margin: 0 0 8px 4px;
+  }
+  .group-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--g);
+    color: var(--g-on);
+  }
+  .group-icon .icon { width: 20px; height: 20px; stroke-width: 2.2; }
+  .group-name {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .count { color: var(--label-2); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+  .renaming { display: flex; align-items: center; gap: 4px; }
+  .rename-input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    border-radius: 10px;
+    background: var(--card-2);
+    padding: 8px 12px;
+    font-size: 17px;
+  }
+  .rename-input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+  .group-head.renaming .rename-input { font-size: 20px; font-weight: 700; }
+  .ex-head.renaming { padding: 6px 8px 6px 12px; }
+
+  .group-options { position: relative; padding: 12px 16px 14px; border-bottom: 0.5px solid var(--sep); }
+  .palette {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    justify-items: center;
+    margin-bottom: 14px;
+  }
+  .swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--g);
+  }
+  .swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--g); }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 14px 0 12px;
+    border-radius: 17px;
+    background: var(--fill);
+    font-size: 15px;
+  }
+  .action .icon { width: 17px; height: 17px; }
+  .action.danger { color: var(--error); }
+  .action:active { opacity: 0.6; }
+
+  .ex-toggle:active { background: var(--card-2); }
+  .ex-panel { padding: 0 16px 14px 28px; }
+  .ex-panel .group-empty { margin: 0 0 4px; }
+  .ex-panel .add-row { padding: 0; }
+  .ex-panel .actions { margin-top: 10px; }
+
+  .sub-list { list-style: none; margin: 0; padding: 0; }
+  .sub-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 40px;
+    border-bottom: 0.5px solid var(--sep);
+    font-size: 15px;
+  }
+  .sub-row .exercise-name { flex: 1; min-width: 0; }
+  .sub-row.renaming { padding: 4px 0; }
+
+  .group-empty { margin: 0; padding: 12px 16px; color: var(--label-2); font-size: 15px; }
+
+  .settings summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 8px 16px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .settings summary::-webkit-details-marker { display: none; }
+  .settings[open] summary > .chev { transform: rotate(90deg); }
+  .settings-icon {
+    display: grid;
+    place-items: center;
+    width: 29px;
+    height: 29px;
+    border-radius: 7px;
+    background: #636366;
+    color: #FFF;
+  }
+  .settings-icon .icon { width: 18px; height: 18px; }
+  .settings-body { padding: 0 16px 16px; }
+  .settings-body p { margin: 0 0 12px; color: var(--label-2); font-size: 13px; line-height: 1.45; }
+  .settings-body code { color: var(--label); }
+  .inline-field { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .inline-field input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    border-radius: 10px;
+    background: var(--card-2);
+    padding: 10px 12px;
+    font-size: 15px;
+  }
+  .inline-field input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+  .secondary {
+    width: 100%;
+    height: 44px;
+    margin-top: 4px;
+    border-radius: 12px;
+    background: var(--fill);
+    color: var(--error);
+    font-size: 17px;
+  }
+
+  /* ------------------------------ terza schermata: i progressi */
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 4px 8px;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .progress-value {
+    flex-shrink: 0;
+    font-size: 17px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-row.senza-dati .exercise-name { color: var(--label-2); }
+  .progress-toggle:active { background: var(--card-2); }
+  .progress-subs { list-style: none; margin: 0; padding: 0 16px 8px 28px; }
+  .progress-subs .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 0.5px solid var(--sep);
+    font-size: 15px;
+  }
+  .progress-subs .progress-value { font-size: 15px; }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -413,79 +627,105 @@
 </head>
 <body>
 
-<div class="app">
+<!-- Icone disegnate a tratto, sullo stile dei simboli di sistema Apple -->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dumbbell" viewBox="0 0 24 24"><path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" stroke-width="2.8"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M7.5 15l3.5-4 3 2.5 5.5-6.5"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+  <symbol id="i-updown" viewBox="0 0 24 24"><path d="M8.5 9.5L12 6l3.5 3.5M8.5 14.5L12 18l3.5-3.5"/></symbol>
+  <symbol id="i-plus-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L16.3 4.3a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M14.5 6l3.5 3.5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v1.5M6.5 6.5l.9 12.1a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9l.9-12.1M10 10.5v6M14 10.5v6"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-xmark" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2.5L4.5 13.5h7l-1 8 9-11h-7z" fill="currentColor"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13.5a4 4 0 0 0 6 .4l2.6-2.6a4 4 0 0 0-5.7-5.7l-1.4 1.4M14 10.5a4 4 0 0 0-6-.4l-2.6 2.6a4 4 0 0 0 5.7 5.7l1.4-1.4"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 4.5L21 19.5H3z"/><path d="M12 10v4.5M12 17.3v.01"/></symbol>
+</svg>
+
+<div class="app" id="app">
   <div class="screens-viewport" id="screensViewport">
     <div class="screens" id="screens">
 
       <!-- Schermata 1: scrive una riga nel foglio Google -->
       <section class="screen" id="screenLog">
-        <header>
-          <h1>Allenamento</h1>
-          <p class="subtitle">Registra la serie appena fatta</p>
-        </header>
+        <h1>Allenamento</h1>
 
         <div class="notice" id="catalogNotice">
+          <svg class="icon" aria-hidden="true"><use href="#i-warning"/></svg>
           <p id="catalogNoticeText"></p>
-          <button type="button" id="retryCatalogBtn">Configura</button>
+          <button type="button" class="text-btn" id="retryCatalogBtn">Configura</button>
         </div>
 
         <form id="logForm" novalidate>
-          <div class="field">
-            <label for="date">Data</label>
-            <input type="date" id="date" name="date" required>
-          </div>
+          <div class="card">
+            <div class="row picker">
+              <span class="row-label">Data</span>
+              <span class="row-value" id="dateValue"></span>
+              <svg class="icon chev" aria-hidden="true"><use href="#i-updown"/></svg>
+              <input type="date" id="date" name="date" required aria-label="Data">
+            </div>
 
-          <div class="field">
-            <label for="muscleGroup">Gruppo muscolare</label>
-            <select id="muscleGroup" name="muscleGroup" required></select>
-          </div>
+            <div class="row picker">
+              <span class="row-label"><span class="dot" aria-hidden="true"></span>Gruppo</span>
+              <span class="row-value" data-per="muscleGroup"></span>
+              <svg class="icon chev" aria-hidden="true"><use href="#i-updown"/></svg>
+              <select id="muscleGroup" name="muscleGroup" required aria-label="Gruppo muscolare"></select>
+            </div>
 
-          <div class="field">
-            <label for="exercise">Esercizio</label>
-            <select id="exercise" name="exercise" required></select>
-          </div>
+            <div class="row picker">
+              <span class="row-label">Esercizio</span>
+              <span class="row-value" data-per="exercise"></span>
+              <svg class="icon chev" aria-hidden="true"><use href="#i-updown"/></svg>
+              <select id="exercise" name="exercise" required aria-label="Esercizio"></select>
+            </div>
 
-          <!-- Compare solo per gli esercizi che hanno sottocategorie -->
-          <div class="field" id="subcategoryField" hidden>
-            <label for="subcategory">Sottocategoria</label>
-            <select id="subcategory" name="subcategory"></select>
+            <!-- Compare solo per gli esercizi che hanno sottocategorie -->
+            <div class="row picker" id="subcategoryField" hidden>
+              <span class="row-label">Sottocategoria</span>
+              <span class="row-value" data-per="subcategory"></span>
+              <svg class="icon chev" aria-hidden="true"><use href="#i-updown"/></svg>
+              <select id="subcategory" name="subcategory" aria-label="Sottocategoria"></select>
+            </div>
           </div>
 
           <p class="hint" id="lastSeriesHint"></p>
 
-          <div class="field">
-            <label for="repetitions">Ripetizioni per set</label>
-            <input type="number" id="repetitions" name="repetitions" placeholder="Es. 10" inputmode="numeric" min="1" step="1" required>
-          </div>
-
-          <div class="field">
-            <label for="sets">Set</label>
-            <input type="number" id="sets" name="sets" placeholder="Es. 4" inputmode="numeric" min="1" step="1" required>
-          </div>
-
-          <div class="field weight-row">
-            <label for="weight">
-              Peso (kg)
-              <input type="number" id="weight" name="weight" placeholder="Es. 20" inputmode="decimal" min="0" step="0.5">
+          <div class="card numbers">
+            <label class="number">
+              <span class="number-label">Ripetizioni</span>
+              <input type="number" id="repetitions" name="repetitions" placeholder="—" inputmode="numeric" min="1" step="1" required>
             </label>
-            <label class="checkbox-label" for="mono">
-              <input type="checkbox" id="mono" name="mono">
-              Mono
+            <label class="number">
+              <span class="number-label">Set</span>
+              <input type="number" id="sets" name="sets" placeholder="—" inputmode="numeric" min="1" step="1" required>
+            </label>
+            <label class="number">
+              <span class="number-label">Peso kg</span>
+              <input type="number" id="weight" name="weight" placeholder="—" inputmode="decimal" min="0" step="0.5">
             </label>
           </div>
 
           <!-- Una serie esplosiva e una categoria a parte: non entra nei
                Progressi e non cambia i suggerimenti delle serie normali -->
-          <div class="field">
-            <button type="button" id="explosive" class="toggle-btn" aria-pressed="false">⚡ Serie esplosiva</button>
+          <div class="chips">
+            <label class="chip">
+              <input type="checkbox" id="mono" name="mono">
+              Mono
+            </label>
+            <button type="button" id="explosive" class="chip" aria-pressed="false">
+              <svg class="icon" aria-hidden="true"><use href="#i-bolt"/></svg>
+              Esplosiva
+            </button>
           </div>
 
-          <div class="field">
-            <label for="comment">Commento</label>
-            <textarea id="comment" name="comment" placeholder="Es. Ultimo set impegnativo" maxlength="500"></textarea>
+          <div class="card comment">
+            <textarea id="comment" name="comment" placeholder="Commento" maxlength="500" aria-label="Commento"></textarea>
           </div>
 
-          <button type="submit" id="submitBtn">Salva serie</button>
+          <button type="submit" id="submitBtn" class="primary">Salva serie</button>
 
           <p id="status" role="status" aria-live="polite"></p>
         </form>
@@ -493,42 +733,45 @@
 
       <!-- Schermata 2: modifica i menu usati dalla schermata 1 -->
       <section class="screen" id="screenExercises">
-        <header>
-          <h1>Esercizi</h1>
-          <p class="subtitle">Modifica i menu a tendina della schermata Allenamento</p>
-          <p id="syncStatus" class="sync" role="status" aria-live="polite"></p>
-        </header>
+        <h1>Esercizi</h1>
+        <p id="syncStatus" class="sync" role="status" aria-live="polite"></p>
 
-        <div class="field add-row">
-          <input type="text" id="newGroup" maxlength="80" placeholder="Nuovo gruppo muscolare" aria-label="Nuovo gruppo muscolare">
-          <button type="button" id="addGroupBtn">Aggiungi</button>
+        <div class="card">
+          <div class="add-row">
+            <svg class="icon" aria-hidden="true"><use href="#i-plus-circle"/></svg>
+            <input type="text" id="newGroup" maxlength="80" placeholder="Nuovo gruppo muscolare" aria-label="Nuovo gruppo muscolare" enterkeyhint="done">
+            <button type="button" class="text-btn" id="addGroupBtn">Aggiungi</button>
+          </div>
         </div>
 
         <p id="exerciseStatus" role="status" aria-live="polite"></p>
 
         <div id="exerciseGroups"></div>
 
-        <details class="settings">
-          <summary>Collegamento a Google Sheets</summary>
-          <p>Incolla qui l'URL del deploy Apps Script (termina con <code>/exec</code>). Il deploy deve essere eseguito come te e accessibile a "Chiunque". Serve solo alla schermata Allenamento: i menu qui sotto funzionano anche senza.</p>
-          <div class="add-row">
-            <input type="url" id="endpointUrl" placeholder="https://script.google.com/macros/s/.../exec" aria-label="URL del deploy Apps Script" autocomplete="off" spellcheck="false">
-            <button type="button" id="saveEndpointBtn">Salva</button>
-          </div>
-          <p id="endpointStatus" role="status" aria-live="polite"></p>
+        <details class="card settings">
+          <summary>
+            <span class="settings-icon"><svg class="icon" aria-hidden="true"><use href="#i-link"/></svg></span>
+            <span class="row-text">Collegamento a Google Sheets</span>
+            <svg class="icon chev" aria-hidden="true"><use href="#i-chevron"/></svg>
+          </summary>
+          <div class="settings-body">
+            <p>Incolla qui l'URL del deploy Apps Script (termina con <code>/exec</code>). Il deploy deve essere eseguito come te e accessibile a "Chiunque". Serve solo alla schermata Allenamento: i menu qui sopra funzionano anche senza.</p>
+            <div class="inline-field">
+              <input type="url" id="endpointUrl" placeholder="https://script.google.com/macros/s/.../exec" aria-label="URL del deploy Apps Script" autocomplete="off" spellcheck="false">
+              <button type="button" class="text-btn" id="saveEndpointBtn">Salva</button>
+            </div>
+            <p id="endpointStatus" role="status" aria-live="polite"></p>
 
-          <p>I menu si sincronizzano da soli sul foglio Google, cosi li ritrovi su ogni dispositivo dove apri l'app. Senza connessione restano su questo dispositivo e partono appena torna la rete. L'elenco di partenza si modifica in cima a <code>index.html</code>.</p>
-          <button type="button" id="resetCatalogBtn" class="secondary">Ripristina elenco predefinito</button>
+            <p>I menu si sincronizzano da soli sul foglio Google, cosi li ritrovi su ogni dispositivo dove apri l'app. Senza connessione restano su questo dispositivo e partono appena torna la rete. L'elenco di partenza si modifica in cima a <code>index.html</code>.</p>
+            <button type="button" id="resetCatalogBtn" class="secondary">Ripristina elenco predefinito</button>
+          </div>
         </details>
       </section>
 
       <!-- Schermata 3: l'ultima serie di ogni esercizio, letta dal foglio -->
       <section class="screen" id="screenProgress">
-        <header>
-          <h1>Progressi</h1>
-          <p class="subtitle">L'ultima serie di ogni esercizio</p>
-          <p id="progressStatus" class="sync" role="status" aria-live="polite"></p>
-        </header>
+        <h1>Progressi</h1>
+        <p id="progressStatus" class="sync" role="status" aria-live="polite"></p>
 
         <div id="progressGroups"></div>
       </section>
@@ -536,15 +779,18 @@
     </div>
   </div>
 
-  <nav class="bottom-nav" id="bottomNav">
-    <button type="button" class="nav-btn active" data-screen="0" aria-current="page" aria-label="Allenamento">
-      <span class="nav-icon" aria-hidden="true">➕</span>
+  <nav class="tabbar" id="bottomNav" aria-label="Schermate">
+    <button type="button" class="nav-btn active" data-screen="0" aria-current="page">
+      <svg class="icon" aria-hidden="true"><use href="#i-dumbbell"/></svg>
+      <span>Allenamento</span>
     </button>
-    <button type="button" class="nav-btn" data-screen="1" aria-current="false" aria-label="Esercizi">
-      <span class="nav-icon" aria-hidden="true">✏️</span>
+    <button type="button" class="nav-btn" data-screen="1" aria-current="false">
+      <svg class="icon" aria-hidden="true"><use href="#i-list"/></svg>
+      <span>Esercizi</span>
     </button>
-    <button type="button" class="nav-btn" data-screen="2" aria-current="false" aria-label="Progressi">
-      <span class="nav-icon" aria-hidden="true">📈</span>
+    <button type="button" class="nav-btn" data-screen="2" aria-current="false">
+      <svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>
+      <span>Progressi</span>
     </button>
   </nav>
 </div>
@@ -563,19 +809,30 @@
      sottocategorie e facoltativo: per un esercizio che si fa in piu modi
      elenca gli attrezzi (o le varianti) fra cui scegliere. Un esercizio che
      si fa in un modo solo semplicemente non compare.
+
+     colore e uno dei nomi di PALETTE qui sotto; se manca ne viene scelto uno
+     libero. Si cambia anche dalla schermata Esercizi.
      ==================================================================== */
   const CATALOGO_PREDEFINITO = [
-    { gruppo: 'Spalle',  esercizi: ['Military press', 'Alzate laterali', 'Alzate frontali', 'Reverse fly'],
+    { gruppo: 'Spalle',  colore: 'arancione', esercizi: ['Military press', 'Alzate laterali', 'Alzate frontali', 'Reverse fly'],
       sottocategorie: { 'Military press': ['Bilanciere', 'Manubri', 'Macchina'], 'Alzate laterali': ['Manubri', 'Cavi'] } },
-    { gruppo: 'Petto',   esercizi: ['Panca piana', 'Panca inclinata', 'Chest press', 'Croci'],
+    { gruppo: 'Petto',   colore: 'rosso', esercizi: ['Panca piana', 'Panca inclinata', 'Chest press', 'Croci'],
       sottocategorie: { 'Panca piana': ['Bilanciere', 'Manubri', 'Smith machine'], 'Panca inclinata': ['Bilanciere', 'Manubri'], 'Croci': ['Manubri', 'Cavi', 'Macchina'] } },
-    { gruppo: 'Gambe',   esercizi: ['Squat', 'Leg press', 'Affondi', 'Leg extension', 'Leg curl'],
+    { gruppo: 'Gambe',   colore: 'verde', esercizi: ['Squat', 'Leg press', 'Affondi', 'Leg extension', 'Leg curl'],
       sottocategorie: { 'Squat': ['Bilanciere', 'Smith machine'], 'Affondi': ['Manubri', 'Bilanciere'] } },
-    { gruppo: 'Braccia', esercizi: ['Curl', 'Pushdown', 'French press'],
+    { gruppo: 'Braccia', colore: 'blu', esercizi: ['Curl', 'Pushdown', 'French press'],
       sottocategorie: { 'Curl': ['Bilanciere', 'Manubri', 'Cavi'], 'Pushdown': ['Corda', 'Barra'] } },
-    { gruppo: 'Addome',  esercizi: ['Crunch', 'Plank', 'Leg raise', 'Ab wheel'] },
-    { gruppo: 'Dorso',   esercizi: ['Stacco da terra', 'Lat machine', 'Rematore', 'Pulley'],
+    { gruppo: 'Addome',  colore: 'giallo', esercizi: ['Crunch', 'Plank', 'Leg raise', 'Ab wheel'] },
+    { gruppo: 'Dorso',   colore: 'viola', esercizi: ['Stacco da terra', 'Lat machine', 'Rematore', 'Pulley'],
       sottocategorie: { 'Rematore': ['Bilanciere', 'Manubrio', 'Macchina'], 'Lat machine': ['Presa larga', 'Presa stretta'] } }
+  ];
+
+  // I colori fra cui scegliere per un gruppo: i valori stanno nel CSS
+  // (--c-nome e --on-nome, il testo da usarci sopra).
+  const PALETTE = [
+    ['rosso', 'Rosso'], ['arancione', 'Arancione'], ['giallo', 'Giallo'], ['verde', 'Verde'],
+    ['menta', 'Menta'], ['azzurro', 'Azzurro'], ['blu', 'Blu'], ['indaco', 'Indaco'],
+    ['viola', 'Viola'], ['rosa', 'Rosa'], ['marrone', 'Marrone'], ['grigio', 'Grigio']
   ];
 
   // URL del deploy di Google Apps Script (termina con /exec).
@@ -593,6 +850,8 @@
   const submitBtn = $('submitBtn');
   const status = $('status');
   const dateInput = $('date');
+  const app = $('app');
+  const dateValue = $('dateValue');
   const muscleGroupInput = $('muscleGroup');
   const exerciseInput = $('exercise');
   const subcategoryField = $('subcategoryField');
@@ -651,6 +910,27 @@
 
   const possiede = (oggetto, chiave) => Object.prototype.hasOwnProperty.call(oggetto, chiave);
 
+  const coloreValido = (colore) => PALETTE.some((voce) => voce[0] === colore);
+
+  const coloreLibero = (gruppi, indice) => {
+    const libero = PALETTE
+      .map((voce) => voce[0])
+      .filter((colore) => !gruppi.some((gruppo) => gruppo.colore === colore))[0];
+    return libero || PALETTE[indice % PALETTE.length][0];
+  };
+
+  // Il colore arriva agli elementi come variabili CSS: --g per lo sfondo,
+  // --g-on per il testo o l'icona che ci stanno sopra.
+  const stileColore = (el, colore) => {
+    if (coloreValido(colore)) {
+      el.style.setProperty('--g', 'var(--c-' + colore + ')');
+      el.style.setProperty('--g-on', 'var(--on-' + colore + ')');
+    } else {
+      el.style.removeProperty('--g');
+      el.style.removeProperty('--g-on');
+    }
+  };
+
   // Elenco di nomi ripulito: niente vuoti, niente doppioni.
   const pulisciElenco = (lista) => (Array.isArray(lista)
     ? lista
@@ -683,7 +963,14 @@
         if (elenco.length) sottocategorie[esercizio] = elenco;
       });
 
-      gruppi.push({ gruppo: nome, esercizi, sottocategorie });
+      gruppi.push({ gruppo: nome, colore: coloreValido(voce.colore) ? voce.colore : '', esercizi, sottocategorie });
+    });
+
+    // Chi non ha un colore (menu di una versione precedente, gruppo nuovo)
+    // prende il primo libero. La scelta dipende solo dall'ordine dei gruppi,
+    // quindi due dispositivi arrivano allo stesso risultato.
+    gruppi.forEach((gruppo, i) => {
+      if (!gruppo.colore) gruppo.colore = coloreLibero(gruppi, i);
     });
 
     return gruppi.length ? gruppi : null;
@@ -751,7 +1038,7 @@
     if (menu.some((voce) => uguali(voce.gruppo, check.valore))) {
       return showStatus(exerciseStatus, 'error', 'Questo gruppo esiste gia'), false;
     }
-    menu.push({ gruppo: check.valore, esercizi: [] });
+    menu.push({ gruppo: check.valore, colore: coloreLibero(menu, menu.length), esercizi: [], sottocategorie: Object.create(null) });
     salvaMenu('Gruppo aggiunto');
     return true;
   };
@@ -773,9 +1060,17 @@
     if (esercizioAperto && esercizioAperto.indexOf(prefisso(vecchio)) === 0) {
       esercizioAperto = prefisso(check.valore) + esercizioAperto.slice(prefisso(vecchio).length);
     }
+    if (gruppoAperto === vecchio) gruppoAperto = check.valore;
     gruppo.gruppo = check.valore;
     salvaMenu('Gruppo rinominato', eraScelto ? check.valore : undefined, eraScelto ? esercizioScelto : undefined);
     return true;
+  };
+
+  const cambiaColore = (nome, colore) => {
+    const gruppo = trovaGruppo(nome);
+    if (!gruppo || !coloreValido(colore) || gruppo.colore === colore) return;
+    gruppo.colore = colore;
+    salvaMenu('');
   };
 
   const eliminaGruppo = (nome) => {
@@ -878,11 +1173,13 @@
     salvaMenu('Sottocategoria rimossa');
   };
 
-  /* --------------------- ultima serie di ogni esercizio (solo locale) */
+  /* -------------------------------- ultima serie di ogni esercizio */
 
-  // Il foglio resta lo storico buono: questa memoria serve soltanto a
-  // riproporre i numeri gia usati, cosi scegliendo un esercizio i campi
-  // arrivano gia compilati e di solito basta premere Salva.
+  // Il foglio resta lo storico buono: questa memoria ne tiene una copia
+  // dell'ultima serie di ogni esercizio, letta dal foglio quando c'e rete e
+  // aggiornata a ogni salvataggio. Serve alla schermata Progressi e a
+  // suggerire i numeri gia usati: scelto l'esercizio, di solito basta premere
+  // Salva.
   //
   // Una voce per ogni gruppo + esercizio + sottocategoria (vuota se non c'e),
   // e una a parte per le serie esplosive. Le parti sono separate da \u0000,
@@ -1066,25 +1363,24 @@
 
   // I numeri dell'ultima serie non riempiono i campi: compaiono in grigio
   // come placeholder. Un campo lasciato vuoto vale quel numero, uno scritto
-  // vale il nuovo. Senza precedenti resta l'esempio generico, che non vale.
-  const ESEMPI = new Map([[repetitionsInput, 'Es. 10'], [setsInput, 'Es. 4'], [weightInput, 'Es. 20']]);
-
+  // vale il nuovo. Senza precedenti resta un trattino, che non vale nulla.
   const suggerisci = (input, valore) => {
     const testo = valoreTesto(valore);
     input.dataset.suggerito = testo;
-    input.placeholder = testo || ESEMPI.get(input);
+    input.placeholder = testo || '—';
     input.classList.toggle('suggerito', testo !== '');
   };
 
   const valoreCampo = (input) => input.value.trim() || input.dataset.suggerito || '';
 
   const aggiornaSuggerimenti = () => {
-    const serie = serieRicordata() || {};
+    const ricordata = serieRicordata();
+    const serie = ricordata || {};
     suggerisci(repetitionsInput, serie.ripetizioni);
     suggerisci(setsInput, serie.set);
     suggerisci(weightInput, serie.peso);
 
-    const descrizione = serieRicordata() ? descriviSerie(serie) : '';
+    const descrizione = ricordata ? descriviSerie(serie) : '';
     lastSeriesHint.textContent = descrizione ? descrizione + ' — i campi vuoti la ripetono' : '';
     lastSeriesHint.classList.toggle('visible', descrizione !== '');
   };
@@ -1093,6 +1389,7 @@
     explosiveBtn.setAttribute('aria-pressed', String(attiva));
     form.classList.toggle('esplosiva', attiva);
     submitBtn.textContent = attiva ? 'Salva serie esplosiva' : 'Salva serie';
+    if (attiva) submitBtn.prepend(icona('bolt'));
   };
 
   // Cambiando esercizio i numeri scritti per quello di prima non hanno piu
@@ -1133,6 +1430,22 @@
     else segnaposto.selected = true;
 
     select.disabled = valori.length === 0;
+    mostraScelta(select);
+  };
+
+  // Il menu nativo e trasparente sopra la riga: la scelta si scrive a destra.
+  const mostraScelta = (select) => {
+    const vista = document.querySelector('[data-per="' + select.id + '"]');
+    if (!vista) return;
+    const opzione = select.options[select.selectedIndex];
+    vista.textContent = opzione ? opzione.textContent : '';
+    vista.classList.toggle('vuoto', !select.value);
+  };
+
+  // Il bottone Salva, il pallino e i controlli prendono il colore del gruppo.
+  const aggiornaColoreForm = () => {
+    const voce = trovaGruppo(muscleGroupInput.value);
+    stileColore(form, voce ? voce.colore : '');
   };
 
   const disegnaMenuGruppi = (selezione) => {
@@ -1140,17 +1453,18 @@
     riempiSelect(
       muscleGroupInput,
       nomi,
-      nomi.length ? 'Scegli un gruppo' : 'Nessun gruppo: creane uno in Esercizi',
+      nomi.length ? 'Scegli' : 'Crea un gruppo in Esercizi',
       selezione === undefined ? muscleGroupInput.value : selezione
     );
+    aggiornaColoreForm();
   };
 
   const disegnaMenuEsercizi = (selezione) => {
     const gruppo = trovaGruppo(muscleGroupInput.value);
     const esercizi = gruppo ? gruppo.esercizi : [];
     const segnaposto = !muscleGroupInput.value
-      ? 'Scegli prima un gruppo'
-      : (esercizi.length ? 'Scegli un esercizio' : 'Nessun esercizio in questo gruppo');
+      ? 'Scegli prima il gruppo'
+      : (esercizi.length ? 'Scegli' : 'Nessuno in questo gruppo');
 
     riempiSelect(exerciseInput, esercizi, segnaposto, selezione === undefined ? exerciseInput.value : selezione);
   };
@@ -1170,98 +1484,97 @@
 
   /* ----------------------------- editor del menu (seconda schermata) */
 
-  const bottoneIcona = (etichetta, simbolo, classe, azione) => {
-    const button = document.createElement('button');
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  // Un'icona dallo sprite in cima alla pagina (id i-nome).
+  const icona = (nome, classe) => {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'icon' + (classe ? ' ' + classe : ''));
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS(SVG_NS, 'use');
+    use.setAttribute('href', '#i-' + nome);
+    svg.appendChild(use);
+    return svg;
+  };
+
+  const crea = (tag, classe, testo) => {
+    const el = document.createElement(tag);
+    if (classe) el.className = classe;
+    if (testo !== undefined) el.textContent = testo;
+    return el;
+  };
+
+  // Bottone con la sola icona: l'etichetta e per chi usa lo screen reader.
+  const bottoneIcona = (etichetta, nomeIcona, classe, azione) => {
+    const button = crea('button', 'icon-btn' + (classe ? ' ' + classe : ''));
     button.type = 'button';
-    button.className = 'icon-button ' + classe;
-    button.textContent = simbolo;
     button.setAttribute('aria-label', etichetta);
+    button.appendChild(icona(nomeIcona));
     button.addEventListener('click', azione);
     return button;
   };
 
-  // Una riga con nome, rinomina ed elimina: la usano sia gli esercizi sia le
-  // sottocategorie. opzioni.dettaglio e una riga grigia sotto il nome,
-  // opzioni.extra un bottone in piu prima di rinomina ed elimina.
-  const rigaModificabile = (nome, opzioni) => {
-    const riga = document.createElement('div');
-    riga.className = 'item-row';
-
-    const vista = () => {
-      riga.innerHTML = '';
-      const testo = document.createElement('span');
-      testo.className = 'exercise-name';
-      testo.textContent = nome;
-      if (opzioni.dettaglio) {
-        const dettaglio = document.createElement('small');
-        dettaglio.className = 'item-detail';
-        dettaglio.textContent = opzioni.dettaglio;
-        testo.appendChild(dettaglio);
-      }
-
-      const azioni = document.createElement('span');
-      azioni.className = 'row-actions';
-      if (opzioni.extra) azioni.appendChild(opzioni.extra);
-      azioni.append(
-        bottoneIcona('Rinomina ' + nome, '✏️', 'edit', modifica),
-        bottoneIcona('Elimina ' + nome, '🗑️', 'danger', opzioni.elimina)
-      );
-
-      riga.append(testo, azioni);
-    };
-
-    const modifica = () => {
-      riga.innerHTML = '';
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.maxLength = LUNGHEZZA_MAX;
-      input.value = nome;
-      input.setAttribute('aria-label', 'Nuovo nome per ' + nome);
-
-      const conferma = () => {
-        const nuovo = input.value.trim();
-        if (!nuovo || nuovo === nome) { vista(); return; }
-        if (!opzioni.rinomina(nuovo)) input.focus();
-      };
-
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); conferma(); }
-        if (e.key === 'Escape') vista();
-      });
-
-      const azioni = document.createElement('span');
-      azioni.className = 'row-actions';
-      azioni.append(
-        bottoneIcona('Salva ' + nome, '✓', 'confirm', conferma),
-        bottoneIcona('Annulla modifica', '✕', 'cancel', vista)
-      );
-
-      riga.append(input, azioni);
-      input.focus();
-      input.select();
-    };
-
-    vista();
-    return riga;
+  // Bottone a capsula con icona e testo, per le azioni dei pannelli aperti.
+  const bottoneAzione = (testo, etichetta, nomeIcona, classe, azione) => {
+    const button = crea('button', 'action' + (classe ? ' ' + classe : ''));
+    button.type = 'button';
+    button.setAttribute('aria-label', etichetta);
+    button.append(icona(nomeIcona), testo);
+    button.addEventListener('click', azione);
+    return button;
   };
 
-  // Campo + bottone per aggiungere una voce. Dopo un'aggiunta riuscita
-  // l'editor viene ridisegnato: il campo nuovo riprende il fuoco, cosi si
-  // possono inserire piu voci di fila senza richiudere la tastiera.
-  const rigaAggiungi = (segnaposto, etichetta, chiave, aggiungi) => {
-    const riga = document.createElement('div');
-    riga.className = 'add-row';
+  // Mette nel contenitore un campo per rinominare. rinomina(nuovo) restituisce
+  // true se il nome e accettato (e l'editor viene ridisegnato); annulla
+  // rimette la vista di prima.
+  const campoRinomina = (contenitore, nome, rinomina, annulla) => {
+    contenitore.innerHTML = '';
+    contenitore.classList.add('renaming');
 
-    const input = document.createElement('input');
+    const input = crea('input', 'rename-input');
+    input.type = 'text';
+    input.maxLength = LUNGHEZZA_MAX;
+    input.value = nome;
+    input.enterKeyHint = 'done';
+    input.setAttribute('aria-label', 'Nuovo nome per ' + nome);
+
+    const conferma = () => {
+      const nuovo = input.value.trim();
+      if (!nuovo || nuovo === nome) { annulla(); return; }
+      if (!rinomina(nuovo)) input.focus();
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); conferma(); }
+      if (e.key === 'Escape') annulla();
+    });
+
+    contenitore.append(
+      input,
+      bottoneIcona('Salva ' + nome, 'check', 'confirm', conferma),
+      bottoneIcona('Annulla modifica', 'xmark', '', annulla)
+    );
+    input.focus();
+    input.select();
+  };
+
+  // Campo per aggiungere una voce, con il + colorato come in Promemoria. Il
+  // bottone Aggiungi compare solo mentre si scrive. Dopo un'aggiunta
+  // riuscita l'editor viene ridisegnato: il campo nuovo riprende il fuoco,
+  // cosi si inseriscono piu voci di fila senza richiudere la tastiera.
+  const rigaAggiungi = (segnaposto, etichetta, chiave, aggiungi) => {
+    const riga = crea('div', 'add-row');
+
+    const input = crea('input');
     input.type = 'text';
     input.maxLength = LUNGHEZZA_MAX;
     input.placeholder = segnaposto;
+    input.enterKeyHint = 'done';
     input.dataset.aggiungi = chiave;
     input.setAttribute('aria-label', etichetta);
 
-    const bottone = document.createElement('button');
+    const bottone = crea('button', 'text-btn', 'Aggiungi');
     bottone.type = 'button';
-    bottone.textContent = 'Aggiungi';
 
     const conferma = () => {
       const nome = input.value.trim();
@@ -1279,139 +1592,170 @@
     });
     bottone.addEventListener('click', conferma);
 
-    riga.append(input, bottone);
+    riga.append(icona('plus-circle'), input, bottone);
     return riga;
   };
 
-  // Un solo esercizio alla volta mostra le sue sottocategorie.
+  // Un solo esercizio e un solo gruppo alla volta tengono aperto il pannello.
   let esercizioAperto = null;
+  let gruppoAperto = null;
 
-  const pannelloSottocategorie = (voce, esercizio) => {
-    const pannello = document.createElement('div');
-    pannello.className = 'sub-panel';
+  const rigaSottocategoria = (voce, esercizio, nome) => {
+    const item = crea('li', 'sub-row');
 
+    const vista = () => {
+      item.classList.remove('renaming');
+      item.innerHTML = '';
+      item.append(
+        crea('span', 'exercise-name', nome),
+        bottoneIcona('Rinomina ' + nome, 'pencil', '', () => campoRinomina(
+          item, nome, (nuovo) => rinominaSottocategoria(voce.gruppo, esercizio, nome, nuovo), vista
+        )),
+        bottoneIcona('Elimina ' + nome, 'trash', 'danger', () => eliminaSottocategoria(voce.gruppo, esercizio, nome))
+      );
+    };
+
+    vista();
+    return item;
+  };
+
+  // Chiuso l'esercizio e una riga sola: nome, sottocategorie in grigio e la
+  // freccia. Aperto mostra sottocategorie, il campo per aggiungerne e le
+  // azioni sull'esercizio.
+  const rigaEsercizio = (voce, esercizio) => {
+    const item = crea('li');
+    item.dataset.esercizio = esercizio;
+    const chiave = prefisso(voce.gruppo, esercizio);
+    const aperto = esercizioAperto === chiave;
     const elenco = sottocategorieDi(voce, esercizio);
-    if (elenco.length) {
-      const lista = document.createElement('ul');
-      lista.className = 'sub-list';
-      elenco.forEach((nome) => {
-        const item = document.createElement('li');
-        item.appendChild(rigaModificabile(nome, {
-          rinomina: (nuovo) => rinominaSottocategoria(voce.gruppo, esercizio, nome, nuovo),
-          elimina: () => eliminaSottocategoria(voce.gruppo, esercizio, nome)
-        }));
-        lista.appendChild(item);
+
+    const testa = crea('div', 'ex-head');
+
+    const vista = () => {
+      testa.classList.remove('renaming');
+      testa.innerHTML = '';
+      const bottone = crea('button', 'row ex-toggle');
+      bottone.type = 'button';
+      bottone.setAttribute('aria-expanded', String(aperto));
+      const testo = crea('span', 'row-text');
+      testo.appendChild(crea('span', 'exercise-name', esercizio));
+      if (elenco.length) testo.appendChild(crea('small', 'item-detail', elenco.join(' · ')));
+      bottone.append(testo, icona('chevron', 'chev'));
+      bottone.addEventListener('click', () => {
+        esercizioAperto = aperto ? null : chiave;
+        disegnaEditor();
       });
+      testa.appendChild(bottone);
+    };
+
+    vista();
+    item.appendChild(testa);
+    if (!aperto) return item;
+
+    const pannello = crea('div', 'ex-panel');
+    if (elenco.length) {
+      const lista = crea('ul', 'sub-list');
+      elenco.forEach((nome) => lista.appendChild(rigaSottocategoria(voce, esercizio, nome)));
       pannello.appendChild(lista);
     } else {
-      const vuoto = document.createElement('p');
-      vuoto.className = 'group-empty';
-      vuoto.textContent = 'Facoltative: aggiungile se fai questo esercizio con attrezzi diversi.';
-      pannello.appendChild(vuoto);
+      pannello.appendChild(crea('p', 'group-empty', 'Sottocategorie facoltative: aggiungile se lo fai con attrezzi diversi.'));
     }
 
     pannello.appendChild(rigaAggiungi(
       'Nuova sottocategoria',
       'Nuova sottocategoria per ' + esercizio,
-      'sotto' + prefisso(voce.gruppo, esercizio),
+      'sotto' + chiave,
       (nome) => aggiungiSottocategoria(voce.gruppo, esercizio, nome)
     ));
-    return pannello;
-  };
 
-  const rigaEsercizio = (voce, esercizio) => {
-    const item = document.createElement('li');
-    const chiave = prefisso(voce.gruppo, esercizio);
-    const aperto = esercizioAperto === chiave;
+    const azioni = crea('div', 'actions');
+    azioni.append(
+      bottoneAzione('Rinomina', 'Rinomina ' + esercizio, 'pencil', '', () => campoRinomina(
+        testa, esercizio, (nuovo) => rinominaEsercizio(voce.gruppo, esercizio, nuovo), vista
+      )),
+      bottoneAzione('Elimina', 'Elimina ' + esercizio, 'trash', 'danger', () => eliminaEsercizio(voce.gruppo, esercizio))
+    );
+    pannello.appendChild(azioni);
 
-    const apri = bottoneIcona('Sottocategorie di ' + esercizio, aperto ? '▴' : '▾', 'toggle', () => {
-      esercizioAperto = aperto ? null : chiave;
-      disegnaEditor();
-    });
-    apri.setAttribute('aria-expanded', String(aperto));
-
-    item.appendChild(rigaModificabile(esercizio, {
-      dettaglio: sottocategorieDi(voce, esercizio).join(' · '),
-      extra: apri,
-      rinomina: (nuovo) => rinominaEsercizio(voce.gruppo, esercizio, nuovo),
-      elimina: () => eliminaEsercizio(voce.gruppo, esercizio)
-    }));
-
-    if (aperto) item.appendChild(pannelloSottocategorie(voce, esercizio));
+    item.appendChild(pannello);
     return item;
   };
 
+  // Il cerchio colorato e i tre puntini aprono lo stesso pannello: colore,
+  // rinomina ed elimina del gruppo.
+  const pannelloGruppo = (voce, testa, vistaTesta) => {
+    const pannello = crea('div', 'group-options');
+
+    const tavolozza = crea('div', 'palette');
+    tavolozza.setAttribute('role', 'group');
+    tavolozza.setAttribute('aria-label', 'Colore del gruppo ' + voce.gruppo);
+    PALETTE.forEach((colore) => {
+      const campione = crea('button', 'swatch');
+      campione.type = 'button';
+      stileColore(campione, colore[0]);
+      campione.setAttribute('aria-label', colore[1]);
+      campione.setAttribute('aria-pressed', String(voce.colore === colore[0]));
+      campione.addEventListener('click', () => cambiaColore(voce.gruppo, colore[0]));
+      tavolozza.appendChild(campione);
+    });
+
+    const azioni = crea('div', 'actions');
+    azioni.append(
+      bottoneAzione('Rinomina', 'Rinomina il gruppo ' + voce.gruppo, 'pencil', '', () => campoRinomina(
+        testa, voce.gruppo, (nuovo) => rinominaGruppo(voce.gruppo, nuovo), vistaTesta
+      )),
+      bottoneAzione('Elimina', 'Elimina il gruppo ' + voce.gruppo, 'trash', 'danger', () => {
+        const extra = voce.esercizi.length ? ' e i suoi ' + voce.esercizi.length + ' esercizi' : '';
+        if (!window.confirm('Eliminare il gruppo "' + voce.gruppo + '"' + extra + '?')) return;
+        eliminaGruppo(voce.gruppo);
+      })
+    );
+
+    pannello.append(tavolozza, azioni);
+    return pannello;
+  };
+
   const cardGruppo = (voce) => {
-    const card = document.createElement('section');
-    card.className = 'group-card';
+    const sezione = crea('section', 'group');
+    stileColore(sezione, voce.colore);
+    const aperto = gruppoAperto === voce.gruppo;
 
-    const header = document.createElement('div');
-    header.className = 'group-header';
+    const apriChiudi = () => {
+      gruppoAperto = aperto ? null : voce.gruppo;
+      disegnaEditor();
+    };
 
+    const testa = crea('div', 'group-head');
     const vista = () => {
-      header.innerHTML = '';
-      const titolo = document.createElement('h2');
-      titolo.className = 'group-name';
-      titolo.textContent = voce.gruppo;
+      testa.classList.remove('renaming');
+      testa.innerHTML = '';
 
-      const azioni = document.createElement('span');
-      azioni.className = 'row-actions';
-      azioni.append(
-        bottoneIcona('Rinomina il gruppo ' + voce.gruppo, '✏️', 'edit', modifica),
-        bottoneIcona('Elimina il gruppo ' + voce.gruppo, '🗑️', 'danger', () => {
-          const extra = voce.esercizi.length ? ' e i suoi ' + voce.esercizi.length + ' esercizi' : '';
-          if (!window.confirm('Eliminare il gruppo "' + voce.gruppo + '"' + extra + '?')) return;
-          eliminaGruppo(voce.gruppo);
-        })
+      const cerchio = crea('button', 'group-icon');
+      cerchio.type = 'button';
+      cerchio.setAttribute('aria-label', 'Colore del gruppo ' + voce.gruppo);
+      cerchio.setAttribute('aria-expanded', String(aperto));
+      cerchio.appendChild(icona('dumbbell'));
+      cerchio.addEventListener('click', apriChiudi);
+
+      const opzioni = bottoneIcona('Opzioni del gruppo ' + voce.gruppo, 'more', '', apriChiudi);
+      opzioni.setAttribute('aria-expanded', String(aperto));
+
+      testa.append(
+        cerchio,
+        crea('h2', 'group-name', voce.gruppo),
+        crea('span', 'count', String(voce.esercizi.length)),
+        opzioni
       );
-
-      header.append(titolo, azioni);
     };
-
-    const modifica = () => {
-      header.innerHTML = '';
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.maxLength = LUNGHEZZA_MAX;
-      input.value = voce.gruppo;
-      input.setAttribute('aria-label', 'Nuovo nome per il gruppo ' + voce.gruppo);
-
-      const conferma = () => {
-        const nuovo = input.value.trim();
-        if (!nuovo || nuovo === voce.gruppo) { vista(); return; }
-        if (!rinominaGruppo(voce.gruppo, nuovo)) input.focus();
-      };
-
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); conferma(); }
-        if (e.key === 'Escape') vista();
-      });
-
-      const azioni = document.createElement('span');
-      azioni.className = 'row-actions';
-      azioni.append(
-        bottoneIcona('Salva il gruppo', '✓', 'confirm', conferma),
-        bottoneIcona('Annulla modifica', '✕', 'cancel', vista)
-      );
-
-      header.append(input, azioni);
-      input.focus();
-      input.select();
-    };
-
     vista();
-    card.appendChild(header);
+
+    const card = crea('div', 'card');
+    if (aperto) card.appendChild(pannelloGruppo(voce, testa, vista));
 
     if (voce.esercizi.length) {
-      const lista = document.createElement('ul');
-      lista.className = 'exercise-list';
+      const lista = crea('ul', 'list');
       voce.esercizi.forEach((esercizio) => lista.appendChild(rigaEsercizio(voce, esercizio)));
       card.appendChild(lista);
-    } else {
-      const vuoto = document.createElement('p');
-      vuoto.className = 'group-empty';
-      vuoto.textContent = 'Nessun esercizio';
-      card.appendChild(vuoto);
     }
 
     card.appendChild(rigaAggiungi(
@@ -1421,7 +1765,8 @@
       (nome) => aggiungiEsercizio(voce.gruppo, nome)
     ));
 
-    return card;
+    sezione.append(testa, card);
+    return sezione;
   };
 
   const disegnaEditor = () => {
@@ -1429,10 +1774,8 @@
     exerciseGroups.innerHTML = '';
 
     if (!menu.length) {
-      const vuoto = document.createElement('p');
-      vuoto.className = 'group-empty';
-      vuoto.textContent = 'Nessun gruppo. Aggiungine uno qui sopra: comparirà subito nel menu della schermata Allenamento.';
-      exerciseGroups.appendChild(vuoto);
+      exerciseGroups.appendChild(crea('p', 'group-empty',
+        'Nessun gruppo. Aggiungine uno qui sopra: comparirà subito nel menu della schermata Allenamento.'));
       return;
     }
 
@@ -1479,13 +1822,12 @@
   // nota e la sottocategoria da citare quando la riga riassume l'esercizio.
   const rigaProgresso = (elemento, nome, serie, nota) => {
     elemento.classList.add('progress-row');
+    elemento.classList.toggle('senza-dati', !serie);
 
-    const testo = document.createElement('span');
-    testo.className = 'exercise-name';
-    testo.textContent = nome;
+    const testo = crea('span', 'row-text');
+    testo.appendChild(crea('span', 'exercise-name', nome));
 
-    const dettaglio = document.createElement('small');
-    dettaglio.className = 'item-detail';
+    let dettaglio = 'Nessuna serie';
     if (serie) {
       const pezzi = [];
       const ripetizioni = valoreTesto(serie.ripetizioni);
@@ -1494,46 +1836,34 @@
       if (serie.mono === true) pezzi.push('mono');
       if (nota) pezzi.push(nota);
       if (dataBreve(serie.data)) pezzi.push(dataBreve(serie.data));
-      dettaglio.textContent = pezzi.join(' · ');
-    } else {
-      dettaglio.textContent = 'Nessuna serie';
+      dettaglio = pezzi.join(' · ');
     }
-    testo.appendChild(dettaglio);
+    testo.appendChild(crea('small', 'item-detail', dettaglio));
 
-    const valore = document.createElement('span');
-    valore.className = 'progress-value';
     const peso = serie ? valoreTesto(serie.peso) : '';
-    valore.textContent = peso ? peso + ' kg' : (serie ? '—' : '');
-
-    elemento.append(testo, valore);
+    elemento.append(testo, crea('span', 'progress-value', peso ? peso + ' kg' : (serie ? '—' : '')));
     return elemento;
   };
 
   const voceProgresso = (voce, esercizio) => {
-    const item = document.createElement('li');
+    const item = crea('li');
     const elenco = sottocategorieDi(voce, esercizio);
     const ultima = ultimaDiEsercizio(voce, esercizio);
-    const senza = serieDi(voce.gruppo, esercizio, '');
 
-    // Senza sottocategorie (o senza dati) non c'e niente da aprire.
+    // Senza sottocategorie non c'e niente da aprire.
     if (!elenco.length) {
-      item.appendChild(rigaProgresso(document.createElement('div'), esercizio, ultima && ultima.serie, ''));
+      item.appendChild(rigaProgresso(crea('div', 'row'), esercizio, ultima && ultima.serie, ''));
       return item;
     }
 
     const chiave = prefisso(voce.gruppo, esercizio);
     const aperto = progressoAperto === chiave;
 
-    const bottone = document.createElement('button');
+    const bottone = crea('button', 'row progress-toggle');
     bottone.type = 'button';
-    bottone.className = 'progress-toggle';
     bottone.setAttribute('aria-expanded', String(aperto));
     rigaProgresso(bottone, esercizio, ultima && ultima.serie, ultima ? ultima.sottocategoria : '');
-    const freccia = document.createElement('span');
-    freccia.className = 'chevron';
-    freccia.setAttribute('aria-hidden', 'true');
-    freccia.textContent = aperto ? '▴' : '▾';
-    bottone.appendChild(freccia);
+    bottone.appendChild(icona('chevron', 'chev'));
     bottone.addEventListener('click', () => {
       progressoAperto = aperto ? null : chiave;
       disegnaProgressi();
@@ -1541,17 +1871,17 @@
     item.appendChild(bottone);
 
     if (aperto) {
-      const lista = document.createElement('ul');
-      lista.className = 'sub-list progress-subs';
+      const lista = crea('ul', 'progress-subs');
       elenco.forEach((sottocategoria) => {
-        const riga = document.createElement('li');
-        riga.appendChild(rigaProgresso(document.createElement('div'), sottocategoria, serieDi(voce.gruppo, esercizio, sottocategoria), ''));
+        const riga = crea('li');
+        riga.appendChild(rigaProgresso(crea('div'), sottocategoria, serieDi(voce.gruppo, esercizio, sottocategoria), ''));
         lista.appendChild(riga);
       });
       // Serie registrate prima che l'esercizio avesse sottocategorie.
+      const senza = serieDi(voce.gruppo, esercizio, '');
       if (senza) {
-        const riga = document.createElement('li');
-        riga.appendChild(rigaProgresso(document.createElement('div'), 'Senza sottocategoria', senza, ''));
+        const riga = crea('li');
+        riga.appendChild(rigaProgresso(crea('div'), 'Senza sottocategoria', senza, ''));
         lista.appendChild(riga);
       }
       item.appendChild(lista);
@@ -1560,40 +1890,37 @@
     return item;
   };
 
+  // Compaiono solo gli esercizi con almeno una serie normale, e solo i gruppi
+  // che ne hanno: gli esercizi mai fatti (o fatti solo in modo esplosivo)
+  // non hanno numeri da mostrare.
   const disegnaProgressi = () => {
     const scroll = screenProgress.scrollTop;
     progressGroups.innerHTML = '';
 
-    if (!Object.keys(ultimeSerie).length) {
-      const vuoto = document.createElement('p');
-      vuoto.className = 'group-empty';
-      vuoto.textContent = 'Ancora nessuna serie: salva la prima dalla schermata Allenamento.';
+    menu.forEach((voce) => {
+      const fatti = voce.esercizi.filter((esercizio) => ultimaDiEsercizio(voce, esercizio));
+      if (!fatti.length) return;
+
+      const sezione = crea('section', 'group');
+      stileColore(sezione, voce.colore);
+
+      const titolo = crea('h2', 'section-title');
+      const pallino = crea('span', 'dot');
+      pallino.setAttribute('aria-hidden', 'true');
+      titolo.append(pallino, voce.gruppo);
+
+      const lista = crea('ul', 'card list');
+      fatti.forEach((esercizio) => lista.appendChild(voceProgresso(voce, esercizio)));
+
+      sezione.append(titolo, lista);
+      progressGroups.appendChild(sezione);
+    });
+
+    if (!progressGroups.children.length) {
+      const vuoto = crea('div', 'card');
+      vuoto.appendChild(crea('p', 'group-empty', 'Ancora nessuna serie: salva la prima dalla schermata Allenamento.'));
       progressGroups.appendChild(vuoto);
     }
-
-    menu.forEach((voce) => {
-      const card = document.createElement('section');
-      card.className = 'group-card';
-
-      const titolo = document.createElement('h2');
-      titolo.className = 'group-name';
-      titolo.textContent = voce.gruppo;
-      card.appendChild(titolo);
-
-      if (voce.esercizi.length) {
-        const lista = document.createElement('ul');
-        lista.className = 'exercise-list';
-        voce.esercizi.forEach((esercizio) => lista.appendChild(voceProgresso(voce, esercizio)));
-        card.appendChild(lista);
-      } else {
-        const vuoto = document.createElement('p');
-        vuoto.className = 'group-empty';
-        vuoto.textContent = 'Nessun esercizio';
-        card.appendChild(vuoto);
-      }
-
-      progressGroups.appendChild(card);
-    });
 
     screenProgress.scrollTop = scroll;
   };
@@ -1816,28 +2143,71 @@
   };
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') aggiornaDalFoglio();
+    if (document.visibilityState !== 'visible') return;
+    aggiornaData();
+    aggiornaDalFoglio();
   });
   window.addEventListener('online', aggiornaDalFoglio);
 
-  const oggi = () => {
+  // Data locale come AAAA-MM-GG, spostata di giorni rispetto a oggi.
+  const giorno = (spostamento) => {
     const adesso = new Date();
+    adesso.setDate(adesso.getDate() + spostamento);
     const scarto = adesso.getTimezoneOffset() * 60000;
     return new Date(adesso.getTime() - scarto).toISOString().slice(0, 10);
   };
+  const oggi = () => giorno(0);
+
+  const FORMATO_DATA = new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  const mostraData = () => {
+    const valore = dateInput.value;
+    const parti = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valore);
+    let testo = 'Scegli';
+    if (valore === oggi()) testo = 'Oggi';
+    else if (valore === giorno(-1)) testo = 'Ieri';
+    else if (parti) testo = FORMATO_DATA.format(new Date(Number(parti[1]), Number(parti[2]) - 1, Number(parti[3])));
+    dateValue.textContent = testo;
+    dateValue.classList.toggle('vuoto', !parti);
+  };
+
+  // Finche la data non viene scelta a mano segue il calendario: riaprendo
+  // l'app il giorno dopo (era solo in background) torna a essere oggi.
+  let dataAMano = false;
+
+  const aggiornaData = () => {
+    if (!dataAMano && dateInput.value !== oggi()) dateInput.value = oggi();
+    mostraData();
+  };
+
+  dateInput.addEventListener('change', () => {
+    dataAMano = dateInput.value !== oggi();
+    mostraData();
+  });
+  // Col mouse il campo trasparente non apre il calendario da solo.
+  dateInput.addEventListener('click', () => {
+    if (!window.matchMedia('(pointer: fine)').matches || typeof dateInput.showPicker !== 'function') return;
+    try { dateInput.showPicker(); } catch (e) { /* gia aperto */ }
+  });
 
   muscleGroupInput.addEventListener('change', () => {
+    mostraScelta(muscleGroupInput);
+    aggiornaColoreForm();
     disegnaMenuEsercizi('');
     disegnaMenuSottocategorie('');
     applicaUltimaSerie(true);
   });
 
   exerciseInput.addEventListener('change', () => {
+    mostraScelta(exerciseInput);
     proponiSottocategoria();
     applicaUltimaSerie(true);
   });
 
-  subcategoryInput.addEventListener('change', () => applicaUltimaSerie(false));
+  subcategoryInput.addEventListener('change', () => {
+    mostraScelta(subcategoryInput);
+    applicaUltimaSerie(false);
+  });
 
   explosiveBtn.addEventListener('click', () => {
     impostaEsplosiva(!esplosivaAttiva());
@@ -1940,7 +2310,7 @@
 
   const setScreen = (index, animate = true) => {
     currentScreen = Math.max(0, Math.min(numeroSchermate - 1, index));
-    screens.style.transition = animate ? 'transform 0.3s ease' : 'none';
+    screens.style.transition = animate ? 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
     screens.style.transform = 'translateX(' + (currentScreen * -quota) + '%)';
     if (currentScreen === SCHERMATA_PROGRESSI) aggiornaStorico(true);
     navButtons.forEach((navBtn) => {
@@ -1954,7 +2324,21 @@
     navBtn.addEventListener('click', () => setScreen(Number(navBtn.dataset.screen)));
   });
 
-  const interattivo = (el) => !!(el && el.closest && el.closest('input, select, textarea, button, label, summary'));
+  // Lo swipe non parte dai campi in cui si scrive, dove un trascinamento
+  // sposta il cursore. Righe a scelta, etichette e bottoni vanno bene: se il
+  // dito si muove di lato non si aprono.
+  const interattivo = (el) => !!(el && el.closest &&
+    el.closest('textarea, input[type="text"], input[type="number"], input[type="url"]'));
+
+  // Un campo raggiunto col tasto Tab in un'altra schermata la porta in vista,
+  // invece di far scorrere di lato il contenitore.
+  document.addEventListener('focusin', (e) => {
+    const schermata = e.target.closest && e.target.closest('.screen');
+    if (!schermata) return;
+    const indice = Array.prototype.indexOf.call(screens.children, schermata);
+    if (indice !== -1 && indice !== currentScreen) setScreen(indice);
+    screensViewport.scrollLeft = 0;
+  });
 
   let pointerId = null;
   let startX = 0;
@@ -2009,6 +2393,56 @@
   screensViewport.addEventListener('pointerup', fineTrascinamento);
   screensViewport.addEventListener('pointercancel', fineTrascinamento);
 
+  /* -------------------------------------------- tastiera e area visibile
+     Su iPhone la tastiera non accorcia la pagina: la copre, e con lei la
+     barra in basso. L'app prende allora l'altezza dell'area davvero visibile
+     (visualViewport) e ci si allinea, cosi la barra resta sopra la tastiera.
+     Su Android lo fa gia interactive-widget=resizes-content nel viewport.
+     -------------------------------------------------------------------- */
+
+  // Porta il campo attivo dentro la parte visibile della sua schermata,
+  // senza scrollIntoView: farebbe scorrere anche il contenitore orizzontale.
+  const mostraCampoAttivo = () => {
+    const campo = document.activeElement;
+    const schermata = campo && campo.closest ? campo.closest('.screen') : null;
+    if (!schermata || !campo.matches('input, textarea, select')) return;
+    const r = campo.getBoundingClientRect();
+    const area = schermata.getBoundingClientRect();
+    const margine = 24;
+    if (r.bottom > area.bottom - margine) schermata.scrollTop += r.bottom - area.bottom + margine;
+    else if (r.top < area.top + margine) schermata.scrollTop -= area.top + margine - r.top;
+  };
+
+  const vv = window.visualViewport;
+  let altezzaPiena = 0;
+
+  const adattaAllaTastiera = () => {
+    const alto = document.documentElement.clientHeight;
+    altezzaPiena = Math.max(altezzaPiena, alto);
+    app.style.height = vv.height + 'px';
+    app.style.transform = vv.offsetTop > 0 ? 'translateY(' + vv.offsetTop + 'px)' : '';
+    // Tastiera aperta: si sta scrivendo e l'area visibile e molto piu bassa
+    // dello schermo.
+    const campo = document.activeElement;
+    const scrive = !!campo && campo.matches('input:not([type="checkbox"]), textarea, select');
+    const aperta = scrive && altezzaPiena - vv.height > 150;
+    if (aperta !== document.documentElement.classList.contains('tastiera')) {
+      document.documentElement.classList.toggle('tastiera', aperta);
+    }
+    if (aperta) mostraCampoAttivo();
+  };
+
+  if (vv) {
+    vv.addEventListener('resize', adattaAllaTastiera);
+    vv.addEventListener('scroll', adattaAllaTastiera);
+    window.addEventListener('orientationchange', () => { altezzaPiena = 0; });
+    adattaAllaTastiera();
+  }
+
+  // Aprendo la tastiera la pagina si accorcia dopo qualche istante.
+  document.addEventListener('focusin', () => setTimeout(mostraCampoAttivo, 350));
+  document.addEventListener('focusout', () => setTimeout(() => { if (vv) adattaAllaTastiera(); }, 50));
+
   // L'avviso della prima schermata porta dritto al campo da riempire.
   retryCatalogBtn.addEventListener('click', () => {
     setScreen(1);
@@ -2019,7 +2453,7 @@
 
   /* ------------------------------------------------------------ avvio */
 
-  dateInput.value = oggi();
+  aggiornaData();
   disegnaTutto();
   aggiornaDalFoglio();
 
