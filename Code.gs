@@ -39,6 +39,7 @@ const COLONNE = [
   { titolo: 'Set',              valore: (p) => numeroOppureTesto(p.set) },
   { titolo: 'Peso (kg)',        valore: (p) => numeroOppureTesto(p.peso) },
   { titolo: 'Mono',             valore: (p) => booleano(p.mono) },
+  { titolo: 'Esplosiva',        valore: (p) => booleano(p.esplosiva) },
   { titolo: 'Commento',         valore: (p) => text(p.commento) }
 ];
 
@@ -140,6 +141,10 @@ function numeroOppureTesto(value) {
  * recente alla piu vecchia. "Ultima" e l'ultima riga scritta, cioe l'ordine in
  * cui l'app ha inviato le serie, anche se una ha una data precedente.
  *
+ * Le serie esplosive sono una categoria a parte: hanno la loro "ultima" e non
+ * prendono mai il posto di quella normale. Se l'ultima riga di un esercizio e
+ * esplosiva, per le serie normali vale la precedente non esplosiva.
+ *
  * riga e il numero della riga nel foglio: all'app serve per capire quale fra
  * due sottocategorie dello stesso esercizio e stata usata per ultima.
  */
@@ -167,7 +172,8 @@ function leggiStorico() {
     if (!gruppo || !esercizio) continue;
 
     const sottocategoria = text(cella(riga, 'Sottocategoria'));
-    const chiave = [gruppo, esercizio, sottocategoria].join('\u0000');
+    const esplosiva = booleano(cella(riga, 'Esplosiva'));
+    const chiave = [gruppo, esercizio, sottocategoria, esplosiva].join('\u0000');
     if (viste[chiave]) continue;
     viste[chiave] = true;
 
@@ -180,6 +186,7 @@ function leggiStorico() {
       set: cella(riga, 'Set'),
       peso: cella(riga, 'Peso (kg)'),
       mono: booleano(cella(riga, 'Mono')),
+      esplosiva: esplosiva,
       riga: i + 2
     });
   }

@@ -157,6 +157,18 @@
     accent-color: var(--accent);
   }
 
+  .toggle-btn {
+    width: auto;
+    min-height: 40px;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .toggle-btn[aria-pressed="true"] { border-color: var(--warning); color: var(--warning); }
+  form.esplosiva #submitBtn { background: var(--warning); }
+
   input::placeholder,
   textarea::placeholder { color: #4A505A; }
 
@@ -462,6 +474,12 @@
             </label>
           </div>
 
+          <!-- Una serie esplosiva e una categoria a parte: non entra nei
+               Progressi e non cambia i suggerimenti delle serie normali -->
+          <div class="field">
+            <button type="button" id="explosive" class="toggle-btn" aria-pressed="false">⚡ Serie esplosiva</button>
+          </div>
+
           <div class="field">
             <label for="comment">Commento</label>
             <textarea id="comment" name="comment" placeholder="Es. Ultimo set impegnativo" maxlength="500"></textarea>
@@ -583,6 +601,7 @@
   const setsInput = $('sets');
   const weightInput = $('weight');
   const monoInput = $('mono');
+  const explosiveBtn = $('explosive');
   const commentInput = $('comment');
   const lastSeriesHint = $('lastSeriesHint');
 
@@ -865,12 +884,16 @@
   // riproporre i numeri gia usati, cosi scegliendo un esercizio i campi
   // arrivano gia compilati e di solito basta premere Salva.
   //
-  // Una voce per ogni gruppo + esercizio + sottocategoria (vuota se non c'e).
-  // Le parti sono separate da \u0000, che da tastiera non si puo scrivere, e
-  // la chiave finisce con il separatore: cosi prefisso(gruppo, esercizio)
-  // prende tutte le sottocategorie di quell'esercizio e nient'altro.
+  // Una voce per ogni gruppo + esercizio + sottocategoria (vuota se non c'e),
+  // e una a parte per le serie esplosive. Le parti sono separate da \u0000,
+  // che da tastiera non si puo scrivere, e la chiave finisce con il
+  // separatore: cosi prefisso(gruppo, esercizio) prende tutte le voci di
+  // quell'esercizio e nient'altro.
   const prefisso = (...parti) => parti.join('\u0000') + '\u0000';
-  const chiaveSerie = (gruppo, esercizio, sottocategoria) => prefisso(gruppo, esercizio, sottocategoria || '');
+  const ESPLOSIVA = 'esplosiva';
+  const chiaveSerie = (gruppo, esercizio, sottocategoria, esplosiva) => (esplosiva
+    ? prefisso(gruppo, esercizio, sottocategoria || '', ESPLOSIVA)
+    : prefisso(gruppo, esercizio, sottocategoria || ''));
 
   let ultimeSerie = (() => {
     const pulite = Object.create(null);
@@ -887,7 +910,7 @@
       const parti = chiave.split('\u0000');
       const serie = dati[chiave];
       if (parti.length < 2 || !parti[0] || !parti[1] || !serie || typeof serie !== 'object') return;
-      pulite[chiaveSerie(parti[0], parti[1], parti[2])] = serie;
+      pulite[chiaveSerie(parti[0], parti[1], parti[2], parti[3] === ESPLOSIVA)] = serie;
     });
     return pulite;
   })();
@@ -902,7 +925,7 @@
   // perderla se nel frattempo arriva una lettura del foglio partita prima.
   const ricordaSerie = (payload) => {
     if (!payload.gruppoMuscolare || !payload.esercizio) return;
-    ultimeSerie[chiaveSerie(payload.gruppoMuscolare, payload.esercizio, payload.sottocategoria)] = {
+    ultimeSerie[chiaveSerie(payload.gruppoMuscolare, payload.esercizio, payload.sottocategoria, payload.esplosiva === true)] = {
       ripetizioni: payload.ripetizioni,
       set: payload.set,
       peso: payload.peso,
@@ -930,7 +953,7 @@
       if (!gruppo || !esercizio) return;
       const ordine = Number(voce.riga) || 0;
       massimo = Math.max(massimo, ordine);
-      nuove[chiaveSerie(gruppo, esercizio, valoreTesto(voce.sottocategoria))] = {
+      nuove[chiaveSerie(gruppo, esercizio, valoreTesto(voce.sottocategoria), voce.esplosiva === true)] = {
         ripetizioni: voce.ripetizioni,
         set: voce.set,
         peso: voce.peso,
@@ -980,14 +1003,17 @@
     scriviUltimeSerie();
   };
 
-  const serieDi = (gruppo, esercizio, sottocategoria) => {
+  // Senza esplosiva si parla sempre di serie normali: le esplosive non
+  // prendono mai il loro posto, ne qui ne nella schermata Progressi.
+  const serieDi = (gruppo, esercizio, sottocategoria, esplosiva) => {
     if (!gruppo || !esercizio) return null;
-    const serie = ultimeSerie[chiaveSerie(gruppo, esercizio, sottocategoria)];
+    const serie = ultimeSerie[chiaveSerie(gruppo, esercizio, sottocategoria, esplosiva)];
     return serie && typeof serie === 'object' ? serie : null;
   };
 
-  // L'ultima serie dell'esercizio fra tutte le sue sottocategorie ancora nel
-  // menu (piu quella "senza sottocategoria"), con il nome di quella usata.
+  // L'ultima serie normale dell'esercizio fra tutte le sue sottocategorie
+  // ancora nel menu (piu quella "senza sottocategoria"), con il nome di quella
+  // usata.
   const ultimaDiEsercizio = (voce, esercizio) => {
     let ultima = null;
     [''].concat(sottocategorieDi(voce, esercizio)).forEach((sottocategoria) => {
@@ -1007,7 +1033,12 @@
     return ultima ? ultima.sottocategoria : '';
   };
 
-  const serieRicordata = () => serieDi(muscleGroupInput.value, exerciseInput.value, subcategoryInput.value);
+  const esplosivaAttiva = () => explosiveBtn.getAttribute('aria-pressed') === 'true';
+
+  // Con il bottone Esplosiva acceso i suggerimenti vengono dall'ultima serie
+  // esplosiva, altrimenti dall'ultima normale.
+  const serieRicordata = () =>
+    serieDi(muscleGroupInput.value, exerciseInput.value, subcategoryInput.value, esplosivaAttiva());
 
   const valoreTesto = (valore) => (valore === null || valore === undefined ? '' : String(valore).trim());
 
@@ -1030,7 +1061,7 @@
     if (!pezzi.length) return '';
 
     const quando = dataBreve(serie.data);
-    return 'Ultima serie' + (quando ? ' del ' + quando : '') + ': ' + pezzi.join(' · ');
+    return 'Ultima serie' + (esplosivaAttiva() ? ' esplosiva' : '') + (quando ? ' del ' + quando : '') + ': ' + pezzi.join(' · ');
   };
 
   // I numeri dell'ultima serie non riempiono i campi: compaiono in grigio
@@ -1056,6 +1087,12 @@
     const descrizione = serieRicordata() ? descriviSerie(serie) : '';
     lastSeriesHint.textContent = descrizione ? descrizione + ' — i campi vuoti la ripetono' : '';
     lastSeriesHint.classList.toggle('visible', descrizione !== '');
+  };
+
+  const impostaEsplosiva = (attiva) => {
+    explosiveBtn.setAttribute('aria-pressed', String(attiva));
+    form.classList.toggle('esplosiva', attiva);
+    submitBtn.textContent = attiva ? 'Salva serie esplosiva' : 'Salva serie';
   };
 
   // Cambiando esercizio i numeri scritti per quello di prima non hanno piu
@@ -1415,7 +1452,7 @@
       return;
     }
     if (scriptVecchio) {
-      catalogNoticeText.textContent = 'Lo script Google pubblicato è una versione precedente: le serie si salvano, ma senza sottocategoria. Ripubblica Code.gs (vedi DEPLOY.md).';
+      catalogNoticeText.textContent = 'Lo script Google pubblicato è una versione precedente: le serie si salvano, ma senza sottocategoria né segno di serie esplosiva. Ripubblica Code.gs (vedi DEPLOY.md).';
       retryCatalogBtn.hidden = true;
       catalogNotice.classList.add('visible');
       return;
@@ -1802,6 +1839,11 @@
 
   subcategoryInput.addEventListener('change', () => applicaUltimaSerie(false));
 
+  explosiveBtn.addEventListener('click', () => {
+    impostaEsplosiva(!esplosivaAttiva());
+    aggiornaSuggerimenti();
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -1814,6 +1856,7 @@
       set: valoreCampo(setsInput),
       peso: valoreCampo(weightInput),
       mono: monoInput.checked,
+      esplosiva: esplosivaAttiva(),
       commento: commentInput.value.trim()
     };
 
@@ -1842,7 +1885,9 @@
         aggiornaAvviso();
       }
 
-      // Data e gruppo restano: di solito segue un altro esercizio dello stesso gruppo.
+      // Data e gruppo restano: di solito segue un altro esercizio dello stesso
+      // gruppo. Esplosiva si spegne: ogni serie esplosiva va dichiarata.
+      impostaEsplosiva(false);
       disegnaMenuEsercizi('');
       disegnaMenuSottocategorie('');
       applicaUltimaSerie(true);
