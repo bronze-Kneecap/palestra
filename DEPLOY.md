@@ -5,9 +5,15 @@ Questo documento riguarda solo il backend, cioe `Code.gs`.
 
 ## Serve davvero?
 
-Di solito no. `Code.gs` ormai fa due cose sole — scrive una riga nel foglio e
-parcheggia la configurazione dei menu — quindi cambia di rado. Finche non lo
-tocchi, non c'e niente da pubblicare.
+Di solito no. `Code.gs` fa tre cose sole — scrive una riga nel foglio, rilegge
+l'ultima serie di ogni esercizio per la schermata Progressi e parcheggia la
+configurazione dei menu — quindi cambia di rado. Finche non lo tocchi, non c'e
+niente da pubblicare.
+
+Quando invece cambia, l'app se ne accorge: se lo script pubblicato e rimasto
+indietro, la schermata Allenamento mostra un avviso finche non lo ripubblichi.
+Le colonne nuove (per esempio `Sottocategoria`) le aggiunge lo script da solo
+alla prima serie salvata, senza spostare le righe gia scritte.
 
 Il workflow `Deploy Google Apps Script` resta spento finche non aggiungi i
 secret: segnala che non e configurato e chiude senza errori.

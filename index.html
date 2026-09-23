@@ -271,6 +271,22 @@
   .item-detail { display: block; margin-top: 2px; color: var(--muted); font-size: 0.8rem; }
   .item-row input { flex: 1; min-width: 0; font-size: 0.95rem; padding: 4px 2px; }
 
+  .progress-row { display: flex; align-items: center; gap: 12px; }
+  .progress-value { flex-shrink: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .progress-toggle {
+    width: 100%;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+  .progress-toggle:active { transform: none; opacity: 0.7; }
+  .chevron { color: var(--muted); flex-shrink: 0; }
+  .progress-subs { margin: 8px 0 2px 14px; padding-left: 12px; border-left: 2px solid var(--line); }
+
   .sub-panel { margin: 10px 0 4px 14px; padding-left: 12px; border-left: 2px solid var(--line); }
   .sub-list li { padding: 6px 0; font-size: 0.9rem; }
 
@@ -338,13 +354,13 @@
 
   .screens {
     display: flex;
-    width: 200%;
+    width: 300%;
     height: 100%;
     transition: transform 0.3s ease;
   }
 
   .screen {
-    width: 50%;
+    width: calc(100% / 3);
     height: 100%;
     flex-shrink: 0;
     overflow-y: auto;
@@ -488,6 +504,17 @@
         </details>
       </section>
 
+      <!-- Schermata 3: l'ultima serie di ogni esercizio, letta dal foglio -->
+      <section class="screen" id="screenProgress">
+        <header>
+          <h1>Progressi</h1>
+          <p class="subtitle">L'ultima serie di ogni esercizio</p>
+          <p id="progressStatus" class="sync" role="status" aria-live="polite"></p>
+        </header>
+
+        <div id="progressGroups"></div>
+      </section>
+
     </div>
   </div>
 
@@ -497,6 +524,9 @@
     </button>
     <button type="button" class="nav-btn" data-screen="1" aria-current="false" aria-label="Esercizi">
       <span class="nav-icon" aria-hidden="true">✏️</span>
+    </button>
+    <button type="button" class="nav-btn" data-screen="2" aria-current="false" aria-label="Progressi">
+      <span class="nav-icon" aria-hidden="true">📈</span>
     </button>
   </nav>
 </div>
@@ -561,6 +591,9 @@
   const retryCatalogBtn = $('retryCatalogBtn');
 
   const screenExercises = $('screenExercises');
+  const screenProgress = $('screenProgress');
+  const progressGroups = $('progressGroups');
+  const progressStatus = $('progressStatus');
   const exerciseGroups = $('exerciseGroups');
   const exerciseStatus = $('exerciseStatus');
   const syncStatus = $('syncStatus');
@@ -865,6 +898,8 @@
   const ordineMassimo = () => Object.keys(ultimeSerie)
     .reduce((massimo, chiave) => Math.max(massimo, Number(ultimeSerie[chiave].ordine) || 0), 0);
 
+  // salvato: quando e stata registrata su questo dispositivo, per non
+  // perderla se nel frattempo arriva una lettura del foglio partita prima.
   const ricordaSerie = (payload) => {
     if (!payload.gruppoMuscolare || !payload.esercizio) return;
     ultimeSerie[chiaveSerie(payload.gruppoMuscolare, payload.esercizio, payload.sottocategoria)] = {
@@ -873,8 +908,57 @@
       peso: payload.peso,
       mono: payload.mono === true,
       data: payload.data,
-      ordine: ordineMassimo() + 1
+      ordine: ordineMassimo() + 1,
+      salvato: Date.now()
     };
+    scriviUltimeSerie();
+  };
+
+  // Il foglio e la fonte buona: quando risponde, la memoria prende le sue
+  // voci (ordine = numero di riga). Delle voci locali restano solo quelle
+  // registrate mentre la lettura era in viaggio e quelle che il foglio non
+  // conosce con quel nome, di solito un esercizio appena rinominato: nel
+  // foglio le sue righe hanno ancora il nome vecchio.
+  const unisciStorico = (storico, inizio) => {
+    const nuove = Object.create(null);
+    let massimo = 0;
+
+    storico.forEach((voce) => {
+      if (!voce || typeof voce !== 'object') return;
+      const gruppo = valoreTesto(voce.gruppo);
+      const esercizio = valoreTesto(voce.esercizio);
+      if (!gruppo || !esercizio) return;
+      const ordine = Number(voce.riga) || 0;
+      massimo = Math.max(massimo, ordine);
+      nuove[chiaveSerie(gruppo, esercizio, valoreTesto(voce.sottocategoria))] = {
+        ripetizioni: voce.ripetizioni,
+        set: voce.set,
+        peso: voce.peso,
+        mono: voce.mono === true,
+        data: valoreTesto(voce.data),
+        ordine
+      };
+    });
+
+    const recenti = [];
+    Object.keys(ultimeSerie).forEach((chiave) => {
+      const locale = ultimeSerie[chiave];
+      if ((Number(locale.salvato) || 0) >= inizio) {
+        recenti.push(chiave);
+      } else if (!possiede(nuove, chiave)) {
+        nuove[chiave] = locale;
+        massimo = Math.max(massimo, Number(locale.ordine) || 0);
+      }
+    });
+
+    // Le recenti vengono dopo tutto il resto, nell'ordine in cui sono state salvate.
+    recenti
+      .sort((a, b) => (Number(ultimeSerie[a].ordine) || 0) - (Number(ultimeSerie[b].ordine) || 0))
+      .forEach((chiave) => {
+        nuove[chiave] = Object.assign({}, ultimeSerie[chiave], { ordine: ++massimo });
+      });
+
+    ultimeSerie = nuove;
     scriviUltimeSerie();
   };
 
@@ -896,32 +980,41 @@
     scriviUltimeSerie();
   };
 
-  // La sottocategoria usata l'ultima volta per questo esercizio, purche
-  // esista ancora nel menu. '' se l'ultima volta non ce n'era una.
-  const ultimaSottocategoria = (gruppo, esercizio) => {
-    const inizio = prefisso(gruppo, esercizio);
-    const elenco = sottocategorieDi(trovaGruppo(gruppo), esercizio);
-    let scelta = '';
-    let ordine = -1;
-    Object.keys(ultimeSerie).forEach((chiave) => {
-      if (chiave.indexOf(inizio) !== 0) return;
-      const sottocategoria = chiave.slice(inizio.length, -1);
-      const questo = Number(ultimeSerie[chiave].ordine) || 0;
-      if (questo > ordine && (sottocategoria === '' || elenco.indexOf(sottocategoria) !== -1)) {
-        ordine = questo;
-        scelta = sottocategoria;
-      }
-    });
-    return scelta;
-  };
-
-  const serieRicordata = () => {
-    if (!muscleGroupInput.value || !exerciseInput.value) return null;
-    const serie = ultimeSerie[chiaveSerie(muscleGroupInput.value, exerciseInput.value, subcategoryInput.value)];
+  const serieDi = (gruppo, esercizio, sottocategoria) => {
+    if (!gruppo || !esercizio) return null;
+    const serie = ultimeSerie[chiaveSerie(gruppo, esercizio, sottocategoria)];
     return serie && typeof serie === 'object' ? serie : null;
   };
 
+  // L'ultima serie dell'esercizio fra tutte le sue sottocategorie ancora nel
+  // menu (piu quella "senza sottocategoria"), con il nome di quella usata.
+  const ultimaDiEsercizio = (voce, esercizio) => {
+    let ultima = null;
+    [''].concat(sottocategorieDi(voce, esercizio)).forEach((sottocategoria) => {
+      const serie = voce ? serieDi(voce.gruppo, esercizio, sottocategoria) : null;
+      if (!serie) return;
+      if (!ultima || (Number(serie.ordine) || 0) > (Number(ultima.serie.ordine) || 0)) {
+        ultima = { serie, sottocategoria };
+      }
+    });
+    return ultima;
+  };
+
+  // La sottocategoria usata l'ultima volta per questo esercizio. '' se
+  // l'ultima volta non ce n'era una o se non si sa niente.
+  const ultimaSottocategoria = (gruppo, esercizio) => {
+    const ultima = ultimaDiEsercizio(trovaGruppo(gruppo), esercizio);
+    return ultima ? ultima.sottocategoria : '';
+  };
+
+  const serieRicordata = () => serieDi(muscleGroupInput.value, exerciseInput.value, subcategoryInput.value);
+
   const valoreTesto = (valore) => (valore === null || valore === undefined ? '' : String(valore).trim());
+
+  const dataBreve = (testo) => {
+    const data = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valoreTesto(testo));
+    return data ? data[3] + '/' + data[2] : '';
+  };
 
   const descriviSerie = (serie) => {
     const pezzi = [];
@@ -936,29 +1029,47 @@
     if (serie.mono === true) pezzi.push('mono');
     if (!pezzi.length) return '';
 
-    const data = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valoreTesto(serie.data));
-    const quando = data ? ' del ' + data[3] + '/' + data[2] : '';
-    return 'Ultima serie' + quando + ': ' + pezzi.join(' · ');
+    const quando = dataBreve(serie.data);
+    return 'Ultima serie' + (quando ? ' del ' + quando : '') + ': ' + pezzi.join(' · ');
   };
 
-  const mostraSuggerimento = () => {
-    const serie = serieRicordata();
-    const descrizione = serie ? descriviSerie(serie) : '';
-    lastSeriesHint.textContent = descrizione;
+  // I numeri dell'ultima serie non riempiono i campi: compaiono in grigio
+  // come placeholder. Un campo lasciato vuoto vale quel numero, uno scritto
+  // vale il nuovo. Senza precedenti resta l'esempio generico, che non vale.
+  const ESEMPI = new Map([[repetitionsInput, 'Es. 10'], [setsInput, 'Es. 4'], [weightInput, 'Es. 20']]);
+
+  const suggerisci = (input, valore) => {
+    const testo = valoreTesto(valore);
+    input.dataset.suggerito = testo;
+    input.placeholder = testo || ESEMPI.get(input);
+    input.classList.toggle('suggerito', testo !== '');
+  };
+
+  const valoreCampo = (input) => input.value.trim() || input.dataset.suggerito || '';
+
+  const aggiornaSuggerimenti = () => {
+    const serie = serieRicordata() || {};
+    suggerisci(repetitionsInput, serie.ripetizioni);
+    suggerisci(setsInput, serie.set);
+    suggerisci(weightInput, serie.peso);
+
+    const descrizione = serieRicordata() ? descriviSerie(serie) : '';
+    lastSeriesHint.textContent = descrizione ? descrizione + ' — i campi vuoti la ripetono' : '';
     lastSeriesHint.classList.toggle('visible', descrizione !== '');
   };
 
-  // Scegliere un esercizio riempie i campi con l'ultima serie salvata: sono
-  // valori normali, basta scriverci sopra per cambiarli. Se di quell'esercizio
-  // non si sa ancora nulla i campi tornano vuoti, cosi non restano addosso i
-  // numeri dell'esercizio scelto prima.
-  const applicaUltimaSerie = () => {
-    const serie = serieRicordata() || {};
-    repetitionsInput.value = valoreTesto(serie.ripetizioni);
-    setsInput.value = valoreTesto(serie.set);
-    weightInput.value = valoreTesto(serie.peso);
-    monoInput.checked = serie.mono === true;
-    mostraSuggerimento();
+  // Cambiando esercizio i numeri scritti per quello di prima non hanno piu
+  // senso e si svuotano (svuota); cambiando solo sottocategoria restano.
+  // Mono non ha un placeholder: riprende direttamente l'ultimo valore.
+  const applicaUltimaSerie = (svuota) => {
+    if (svuota) {
+      repetitionsInput.value = '';
+      setsInput.value = '';
+      weightInput.value = '';
+    }
+    const serie = serieRicordata();
+    monoInput.checked = !!serie && serie.mono === true;
+    aggiornaSuggerimenti();
   };
 
   /* -------------------------------------- menu a tendina (prima schermata) */
@@ -1292,9 +1403,20 @@
     screenExercises.scrollTop = scroll;
   };
 
+  // scriptVecchio: il foglio risponde ma con un Code.gs precedente, che non
+  // conosce sottocategorie e storico. Lo si capisce da versione nelle risposte.
+  let scriptVecchio = false;
+
   const aggiornaAvviso = () => {
     if (!urlValido(scriptUrl)) {
       catalogNoticeText.textContent = 'Collegamento a Google Sheets non configurato: apri la schermata Esercizi e incolla l’URL del deploy.';
+      retryCatalogBtn.hidden = false;
+      catalogNotice.classList.add('visible');
+      return;
+    }
+    if (scriptVecchio) {
+      catalogNoticeText.textContent = 'Lo script Google pubblicato è una versione precedente: le serie si salvano, ma senza sottocategoria. Ripubblica Code.gs (vedi DEPLOY.md).';
+      retryCatalogBtn.hidden = true;
       catalogNotice.classList.add('visible');
       return;
     }
@@ -1306,8 +1428,137 @@
     disegnaMenuEsercizi(selEsercizio);
     disegnaMenuSottocategorie(selSottocategoria);
     disegnaEditor();
+    disegnaProgressi();
     aggiornaAvviso();
-    mostraSuggerimento();
+    aggiornaSuggerimenti();
+  };
+
+  /* ------------------------------------ terza schermata: progressi */
+
+  // Un esercizio con sottocategorie si apre per mostrarle una per una.
+  let progressoAperto = null;
+
+  // Una riga: nome a sinistra con i dettagli sotto, peso a destra.
+  // nota e la sottocategoria da citare quando la riga riassume l'esercizio.
+  const rigaProgresso = (elemento, nome, serie, nota) => {
+    elemento.classList.add('progress-row');
+
+    const testo = document.createElement('span');
+    testo.className = 'exercise-name';
+    testo.textContent = nome;
+
+    const dettaglio = document.createElement('small');
+    dettaglio.className = 'item-detail';
+    if (serie) {
+      const pezzi = [];
+      const ripetizioni = valoreTesto(serie.ripetizioni);
+      const set = valoreTesto(serie.set);
+      if (ripetizioni || set) pezzi.push((ripetizioni || '–') + ' rip × ' + (set || '–') + ' set');
+      if (serie.mono === true) pezzi.push('mono');
+      if (nota) pezzi.push(nota);
+      if (dataBreve(serie.data)) pezzi.push(dataBreve(serie.data));
+      dettaglio.textContent = pezzi.join(' · ');
+    } else {
+      dettaglio.textContent = 'Nessuna serie';
+    }
+    testo.appendChild(dettaglio);
+
+    const valore = document.createElement('span');
+    valore.className = 'progress-value';
+    const peso = serie ? valoreTesto(serie.peso) : '';
+    valore.textContent = peso ? peso + ' kg' : (serie ? '—' : '');
+
+    elemento.append(testo, valore);
+    return elemento;
+  };
+
+  const voceProgresso = (voce, esercizio) => {
+    const item = document.createElement('li');
+    const elenco = sottocategorieDi(voce, esercizio);
+    const ultima = ultimaDiEsercizio(voce, esercizio);
+    const senza = serieDi(voce.gruppo, esercizio, '');
+
+    // Senza sottocategorie (o senza dati) non c'e niente da aprire.
+    if (!elenco.length) {
+      item.appendChild(rigaProgresso(document.createElement('div'), esercizio, ultima && ultima.serie, ''));
+      return item;
+    }
+
+    const chiave = prefisso(voce.gruppo, esercizio);
+    const aperto = progressoAperto === chiave;
+
+    const bottone = document.createElement('button');
+    bottone.type = 'button';
+    bottone.className = 'progress-toggle';
+    bottone.setAttribute('aria-expanded', String(aperto));
+    rigaProgresso(bottone, esercizio, ultima && ultima.serie, ultima ? ultima.sottocategoria : '');
+    const freccia = document.createElement('span');
+    freccia.className = 'chevron';
+    freccia.setAttribute('aria-hidden', 'true');
+    freccia.textContent = aperto ? '▴' : '▾';
+    bottone.appendChild(freccia);
+    bottone.addEventListener('click', () => {
+      progressoAperto = aperto ? null : chiave;
+      disegnaProgressi();
+    });
+    item.appendChild(bottone);
+
+    if (aperto) {
+      const lista = document.createElement('ul');
+      lista.className = 'sub-list progress-subs';
+      elenco.forEach((sottocategoria) => {
+        const riga = document.createElement('li');
+        riga.appendChild(rigaProgresso(document.createElement('div'), sottocategoria, serieDi(voce.gruppo, esercizio, sottocategoria), ''));
+        lista.appendChild(riga);
+      });
+      // Serie registrate prima che l'esercizio avesse sottocategorie.
+      if (senza) {
+        const riga = document.createElement('li');
+        riga.appendChild(rigaProgresso(document.createElement('div'), 'Senza sottocategoria', senza, ''));
+        lista.appendChild(riga);
+      }
+      item.appendChild(lista);
+    }
+
+    return item;
+  };
+
+  const disegnaProgressi = () => {
+    const scroll = screenProgress.scrollTop;
+    progressGroups.innerHTML = '';
+
+    if (!Object.keys(ultimeSerie).length) {
+      const vuoto = document.createElement('p');
+      vuoto.className = 'group-empty';
+      vuoto.textContent = 'Ancora nessuna serie: salva la prima dalla schermata Allenamento.';
+      progressGroups.appendChild(vuoto);
+    }
+
+    menu.forEach((voce) => {
+      const card = document.createElement('section');
+      card.className = 'group-card';
+
+      const titolo = document.createElement('h2');
+      titolo.className = 'group-name';
+      titolo.textContent = voce.gruppo;
+      card.appendChild(titolo);
+
+      if (voce.esercizi.length) {
+        const lista = document.createElement('ul');
+        lista.className = 'exercise-list';
+        voce.esercizi.forEach((esercizio) => lista.appendChild(voceProgresso(voce, esercizio)));
+        card.appendChild(lista);
+      } else {
+        const vuoto = document.createElement('p');
+        vuoto.className = 'group-empty';
+        vuoto.textContent = 'Nessun esercizio';
+        card.appendChild(vuoto);
+      }
+
+      progressGroups.appendChild(card);
+    });
+
+    screenProgress.scrollTop = scroll;
   };
 
   addGroupBtn.addEventListener('click', () => {
@@ -1468,10 +1719,69 @@
     mostraSync(false, 'Menu sincronizzati ✓');
   };
 
+  /* ---------------------------------- storico letto dal foglio ---------
+     La schermata Progressi e i placeholder della prima schermata leggono
+     l'ultima serie di ogni esercizio dal foglio, cosi valgono anche le serie
+     salvate da un altro dispositivo. Senza rete resta la memoria locale.
+     -------------------------------------------------------------------- */
+
+  const mostraStatoProgressi = (inAttesa, testo) => {
+    progressStatus.className = inAttesa ? 'sync attesa' : 'sync';
+    progressStatus.textContent = testo;
+  };
+
+  let letturaInCorso = null;
+  let ultimaLettura = 0;
+
+  // soloSeScaduto: aprendo la schermata non si rilegge il foglio se l'ultima
+  // lettura e di pochi secondi fa.
+  const aggiornaStorico = (soloSeScaduto) => {
+    if (!urlValido(scriptUrl)) {
+      mostraStatoProgressi(true, 'Collegamento non configurato: dati di questo dispositivo');
+      return Promise.resolve();
+    }
+    if (letturaInCorso) return letturaInCorso;
+    if (soloSeScaduto && Date.now() - ultimaLettura < 30000) return Promise.resolve();
+
+    const inizio = Date.now();
+    mostraStatoProgressi(false, 'Aggiornamento…');
+
+    letturaInCorso = leggiDaFogli('leggiStorico')
+      .then((risposta) => {
+        if (!Array.isArray(risposta.storico)) {
+          scriptVecchio = true;
+          aggiornaAvviso();
+          mostraStatoProgressi(true, 'Ripubblica Code.gs per leggere lo storico dal foglio: per ora dati di questo dispositivo');
+          return;
+        }
+        scriptVecchio = false;
+        ultimaLettura = Date.now();
+        unisciStorico(risposta.storico, inizio);
+        aggiornaAvviso();
+        aggiornaSuggerimenti();
+        disegnaProgressi();
+        const ora = new Date();
+        mostraStatoProgressi(false, 'Aggiornato alle ' + ora.getHours() + ':' + String(ora.getMinutes()).padStart(2, '0'));
+      })
+      .catch(() => {
+        mostraStatoProgressi(true, 'Foglio non raggiungibile: dati di questo dispositivo');
+      })
+      .then(() => {
+        letturaInCorso = null;
+      });
+
+    return letturaInCorso;
+  };
+
+  const aggiornaDalFoglio = () => {
+    sincronizza();
+    aggiornaStorico();
+  };
+
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') sincronizza();
+    if (document.visibilityState === 'visible') aggiornaDalFoglio();
   });
-  window.addEventListener('online', sincronizza);
+  window.addEventListener('online', aggiornaDalFoglio);
 
   const oggi = () => {
     const adesso = new Date();
@@ -1482,15 +1792,15 @@
   muscleGroupInput.addEventListener('change', () => {
     disegnaMenuEsercizi('');
     disegnaMenuSottocategorie('');
-    mostraSuggerimento();
+    applicaUltimaSerie(true);
   });
 
   exerciseInput.addEventListener('change', () => {
     proponiSottocategoria();
-    applicaUltimaSerie();
+    applicaUltimaSerie(true);
   });
 
-  subcategoryInput.addEventListener('change', applicaUltimaSerie);
+  subcategoryInput.addEventListener('change', () => applicaUltimaSerie(false));
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1500,9 +1810,9 @@
       gruppoMuscolare: muscleGroupInput.value,
       esercizio: exerciseInput.value,
       sottocategoria: subcategoryField.hidden ? '' : subcategoryInput.value,
-      ripetizioni: repetitionsInput.value,
-      set: setsInput.value,
-      peso: weightInput.value,
+      ripetizioni: valoreCampo(repetitionsInput),
+      set: valoreCampo(setsInput),
+      peso: valoreCampo(weightInput),
       mono: monoInput.checked,
       commento: commentInput.value.trim()
     };
@@ -1523,18 +1833,20 @@
     showStatus(status, 'pending', 'Invio in corso…', 0);
 
     try {
-      await inviaAFogli(payload);
+      const risposta = await inviaAFogli(payload);
       showStatus(status, 'success', 'Salvato ✓');
       ricordaSerie(payload);
+      const vecchio = !(Number(risposta.versione) >= 2);
+      if (vecchio !== scriptVecchio) {
+        scriptVecchio = vecchio;
+        aggiornaAvviso();
+      }
 
       // Data e gruppo restano: di solito segue un altro esercizio dello stesso gruppo.
       disegnaMenuEsercizi('');
       disegnaMenuSottocategorie('');
-      mostraSuggerimento();
-      repetitionsInput.value = '';
-      setsInput.value = '';
-      weightInput.value = '';
-      monoInput.checked = false;
+      applicaUltimaSerie(true);
+      disegnaProgressi();
       commentInput.value = '';
       if (!exerciseInput.disabled) exerciseInput.focus();
     } catch (err) {
@@ -1565,7 +1877,7 @@
     try {
       await leggiDaFogli('ping');
       showStatus(endpointStatus, 'success', 'Collegamento riuscito', 6000);
-      sincronizza();
+      aggiornaDalFoglio();
     } catch (err) {
       showStatus(endpointStatus, 'error', 'Salvato, ma la verifica non è riuscita: ' + err.message, 6000);
     }
@@ -1576,12 +1888,16 @@
   const screens = $('screens');
   const screensViewport = $('screensViewport');
   const navButtons = document.querySelectorAll('.nav-btn');
+  const SCHERMATA_PROGRESSI = 2;
+  const numeroSchermate = screens.children.length;
+  const quota = 100 / numeroSchermate; // quanto sposta una schermata, in % di .screens
   let currentScreen = 0;
 
   const setScreen = (index, animate = true) => {
-    currentScreen = Math.max(0, Math.min(1, index));
+    currentScreen = Math.max(0, Math.min(numeroSchermate - 1, index));
     screens.style.transition = animate ? 'transform 0.3s ease' : 'none';
-    screens.style.transform = 'translateX(' + (currentScreen * -50) + '%)';
+    screens.style.transform = 'translateX(' + (currentScreen * -quota) + '%)';
+    if (currentScreen === SCHERMATA_PROGRESSI) aggiornaStorico(true);
     navButtons.forEach((navBtn) => {
       const attivo = Number(navBtn.dataset.screen) === currentScreen;
       navBtn.classList.toggle('active', attivo);
@@ -1627,8 +1943,8 @@
     if (e.cancelable) e.preventDefault();
     dragDeltaX = dx;
     const larghezza = screensViewport.clientWidth || 1;
-    const base = currentScreen * -50;
-    const prossimo = Math.max(-50, Math.min(0, base + (dragDeltaX / larghezza) * 50));
+    const base = currentScreen * -quota;
+    const prossimo = Math.max(-quota * (numeroSchermate - 1), Math.min(0, base + (dragDeltaX / larghezza) * quota));
     screens.style.transform = 'translateX(' + prossimo + '%)';
   });
 
@@ -1637,8 +1953,8 @@
     pointerId = null;
     if (axisLocked === 'x') {
       const soglia = (screensViewport.clientWidth || 1) * 0.2;
-      if (dragDeltaX < -soglia) setScreen(1);
-      else if (dragDeltaX > soglia) setScreen(0);
+      if (dragDeltaX < -soglia) setScreen(currentScreen + 1);
+      else if (dragDeltaX > soglia) setScreen(currentScreen - 1);
       else setScreen(currentScreen);
     }
     axisLocked = null;
@@ -1660,7 +1976,7 @@
 
   dateInput.value = oggi();
   disegnaTutto();
-  sincronizza();
+  aggiornaDalFoglio();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

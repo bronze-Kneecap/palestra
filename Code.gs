@@ -1,9 +1,11 @@
 /**
  * Backend minimo per l'app Allenamento.
  *
- * Fa due cose sole:
+ * Fa tre cose sole:
  *   1. riceve una serie dalla prima schermata e la scrive in fondo al foglio;
- *   2. parcheggia e restituisce la configurazione dei menu, cosi l'app ritrova
+ *   2. rilegge il foglio e restituisce l'ultima serie di ogni esercizio, per
+ *      la schermata Progressi e per i suggerimenti della prima schermata;
+ *   3. parcheggia e restituisce la configurazione dei menu, cosi l'app ritrova
  *      le stesse tendine su qualunque dispositivo.
  *
  * Non conosce i gruppi muscolari ne gli esercizi: arrivano come testo e come
@@ -45,13 +47,18 @@ function doGet(event) {
     const azione = event && event.parameter ? String(event.parameter.action || '') : '';
 
     if (azione === 'leggiConfig') {
-      return jsonResponse({ result: 'success', config: leggiConfigurazione() });
+      return jsonResponse({ result: 'success', config: leggiConfigurazione(), versione: VERSIONE });
+    }
+
+    if (azione === 'leggiStorico') {
+      return jsonResponse({ result: 'success', storico: leggiStorico(), versione: VERSIONE });
     }
 
     return jsonResponse({
       result: 'success',
       message: 'Endpoint Google Sheets attivo',
-      foglio: getSpreadsheet().getName()
+      foglio: getSpreadsheet().getName(),
+      versione: VERSIONE
     });
   } catch (error) {
     return errorResponse(error);
@@ -126,6 +133,67 @@ function numeroOppureTesto(value) {
   if (raw === '') return '';
   const numero = Number(raw.replace(',', '.'));
   return isNaN(numero) ? raw : numero;
+}
+
+/**
+ * L'ultima serie di ogni gruppo + esercizio + sottocategoria, dalla piu
+ * recente alla piu vecchia. "Ultima" e l'ultima riga scritta, cioe l'ordine in
+ * cui l'app ha inviato le serie, anche se una ha una data precedente.
+ *
+ * riga e il numero della riga nel foglio: all'app serve per capire quale fra
+ * due sottocategorie dello stesso esercizio e stata usata per ultima.
+ */
+function leggiStorico() {
+  const sheet = getSheet();
+  const ultima = sheet.getLastRow();
+  if (ultima < 2) return [];
+
+  const intestazioni = leggiIntestazioni(sheet);
+  const posizione = {};
+  COLONNE.forEach((colonna) => {
+    posizione[colonna.titolo] = cercaColonna(intestazioni, colonna.titolo);
+  });
+  const cella = (riga, titolo) => (posizione[titolo] === -1 ? '' : riga[posizione[titolo]]);
+  const fuso = getSpreadsheet().getSpreadsheetTimeZone();
+
+  const valori = sheet.getRange(2, 1, ultima - 1, intestazioni.length).getValues();
+  const viste = {};
+  const storico = [];
+
+  for (let i = valori.length - 1; i >= 0; i--) {
+    const riga = valori[i];
+    const gruppo = text(cella(riga, 'Gruppo muscolare'));
+    const esercizio = text(cella(riga, 'Esercizio'));
+    if (!gruppo || !esercizio) continue;
+
+    const sottocategoria = text(cella(riga, 'Sottocategoria'));
+    const chiave = [gruppo, esercizio, sottocategoria].join('\u0000');
+    if (viste[chiave]) continue;
+    viste[chiave] = true;
+
+    storico.push({
+      gruppo: gruppo,
+      esercizio: esercizio,
+      sottocategoria: sottocategoria,
+      data: dataTesto(cella(riga, 'Data'), fuso),
+      ripetizioni: cella(riga, 'Ripetizioni'),
+      set: cella(riga, 'Set'),
+      peso: cella(riga, 'Peso (kg)'),
+      mono: booleano(cella(riga, 'Mono')),
+      riga: i + 2
+    });
+  }
+
+  return storico;
+}
+
+// Sheets trasforma "2026-09-23" in una data: la si riporta al testo che
+// l'app ha inviato.
+function dataTesto(valore, fuso) {
+  if (Object.prototype.toString.call(valore) === '[object Date]') {
+    return Utilities.formatDate(valore, fuso, 'yyyy-MM-dd');
+  }
+  return text(valore);
 }
 
 /**
