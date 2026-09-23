@@ -22,7 +22,7 @@ const CONFIG = {
 
 // Cresce quando cambia cio che il foglio sa salvare: l'app la legge nelle
 // risposte e avvisa se lo script pubblicato e rimasto indietro.
-const VERSIONE = 2;
+const VERSIONE = 3;
 
 const CONFIG_SHEET_NAME = 'Configurazione';
 const CONFIG_MAX_CARATTERI = 45000; // una cella di Sheets ne regge 50.000
@@ -40,6 +40,7 @@ const COLONNE = [
   { titolo: 'Peso (kg)',        valore: (p) => numeroOppureTesto(p.peso) },
   { titolo: 'Mono',             valore: (p) => booleano(p.mono) },
   { titolo: 'Esplosiva',        valore: (p) => booleano(p.esplosiva) },
+  { titolo: 'Esecuzione',       valore: (p) => text(p.esecuzione) },
   { titolo: 'Commento',         valore: (p) => text(p.commento) }
 ];
 
@@ -187,6 +188,7 @@ function leggiStorico() {
       peso: cella(riga, 'Peso (kg)'),
       mono: booleano(cella(riga, 'Mono')),
       esplosiva: esplosiva,
+      esecuzione: text(cella(riga, 'Esecuzione')),
       riga: i + 2
     });
   }

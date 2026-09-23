@@ -371,8 +371,8 @@
   .number input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .number input.suggerito::placeholder { color: var(--label-2); }
 
-  /* Interruttori a capsula: Mono ed Esplosiva */
-  .chips { display: flex; gap: 8px; margin: 0 0 24px; }
+  /* Interruttori a capsula: Mono, Esplosiva ed Esecuzione */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 24px; }
   .chip {
     position: relative;
     display: inline-flex;
@@ -395,6 +395,15 @@
   .chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   .chip:has(input:checked) { background: var(--label); color: #000; }
   .chip[aria-pressed="true"] { background: var(--warning); color: #000; }
+
+  /* Esecuzione e sempre colorata, come un semaforo. Il giallo di Sporca la
+     tiene distinta dall'arancione di Esplosiva. La larghezza e quella della
+     voce piu lunga, cosi passando da una all'altra il bottone non cambia
+     misura. */
+  .chip.esecuzione { justify-content: center; min-width: 120px; color: #000; }
+  .chip.esecuzione[data-esecuzione="pulita"] { background: var(--c-verde); }
+  .chip.esecuzione[data-esecuzione="sporca"] { background: var(--c-giallo); }
+  .chip.esecuzione[data-esecuzione="scorretta"] { background: var(--c-rosso); }
 
   .comment textarea {
     display: block;
@@ -640,6 +649,7 @@
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
   <symbol id="i-xmark" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-tilde" viewBox="0 0 24 24"><path d="M4.5 14c1.8-3.2 4-4 7.5-2s5.7 1.2 7.5-2"/></symbol>
   <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2.5L4.5 13.5h7l-1 8 9-11h-7z" fill="currentColor"/></symbol>
   <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13.5a4 4 0 0 0 6 .4l2.6-2.6a4 4 0 0 0-5.7-5.7l-1.4 1.4M14 10.5a4 4 0 0 0-6-.4l-2.6 2.6a4 4 0 0 0 5.7 5.7l1.4-1.4"/></symbol>
   <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 4.5L21 19.5H3z"/><path d="M12 10v4.5M12 17.3v.01"/></symbol>
@@ -718,6 +728,11 @@
             <button type="button" id="explosive" class="chip" aria-pressed="false">
               <svg class="icon" aria-hidden="true"><use href="#i-bolt"/></svg>
               Esplosiva
+            </button>
+            <!-- Qualita di esecuzione: ogni tocco passa alla successiva -->
+            <button type="button" id="execution" class="chip esecuzione" data-esecuzione="pulita" aria-label="Esecuzione pulita">
+              <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
+              Pulita
             </button>
           </div>
 
@@ -861,6 +876,7 @@
   const weightInput = $('weight');
   const monoInput = $('mono');
   const explosiveBtn = $('explosive');
+  const executionBtn = $('execution');
   const commentInput = $('comment');
   const lastSeriesHint = $('lastSeriesHint');
 
@@ -1227,6 +1243,7 @@
       set: payload.set,
       peso: payload.peso,
       mono: payload.mono === true,
+      esecuzione: payload.esecuzione,
       data: payload.data,
       ordine: ordineMassimo() + 1,
       salvato: Date.now()
@@ -1255,6 +1272,7 @@
         set: voce.set,
         peso: voce.peso,
         mono: voce.mono === true,
+        esecuzione: valoreTesto(voce.esecuzione),
         data: valoreTesto(voce.data),
         ordine
       };
@@ -1332,6 +1350,31 @@
 
   const esplosivaAttiva = () => explosiveBtn.getAttribute('aria-pressed') === 'true';
 
+  // Le qualita di esecuzione, nell'ordine in cui il bottone le fa girare. La
+  // prima e quella di partenza.
+  const ESECUZIONI = [
+    { valore: 'pulita', nome: 'Pulita', icona: 'check' },
+    { valore: 'sporca', nome: 'Sporca', icona: 'tilde' },
+    { valore: 'scorretta', nome: 'Scorretta', icona: 'xmark' }
+  ];
+
+  const esecuzioneAttuale = () => executionBtn.dataset.esecuzione;
+
+  const impostaEsecuzione = (valore) => {
+    const esecuzione = ESECUZIONI.find((e) => e.valore === valore) || ESECUZIONI[0];
+    executionBtn.dataset.esecuzione = esecuzione.valore;
+    executionBtn.setAttribute('aria-label', 'Esecuzione ' + esecuzione.valore);
+    executionBtn.textContent = '';
+    executionBtn.append(icona(esecuzione.icona), esecuzione.nome);
+  };
+
+  // Pulita e la norma e non si scrive, come le serie di prima che non hanno
+  // il dato. Le altre si segnalano accanto a mono.
+  const notaEsecuzione = (serie) => {
+    const valore = valoreTesto(serie.esecuzione).toLowerCase();
+    return ESECUZIONI.some((e) => e.valore === valore) && valore !== ESECUZIONI[0].valore ? valore : '';
+  };
+
   // Con il bottone Esplosiva acceso i suggerimenti vengono dall'ultima serie
   // esplosiva, altrimenti dall'ultima normale.
   const serieRicordata = () =>
@@ -1355,6 +1398,7 @@
     const peso = valoreTesto(serie.peso);
     if (peso) pezzi.push(peso + ' kg');
     if (serie.mono === true) pezzi.push('mono');
+    if (notaEsecuzione(serie)) pezzi.push(notaEsecuzione(serie));
     if (!pezzi.length) return '';
 
     const quando = dataBreve(serie.data);
@@ -1784,7 +1828,9 @@
   };
 
   // scriptVecchio: il foglio risponde ma con un Code.gs precedente, che non
-  // conosce sottocategorie e storico. Lo si capisce da versione nelle risposte.
+  // conosce tutti i campi della serie. Lo si capisce da versione nelle
+  // risposte, che cresce insieme a VERSIONE in Code.gs.
+  const VERSIONE_SCRIPT = 3;
   let scriptVecchio = false;
 
   const aggiornaAvviso = () => {
@@ -1795,7 +1841,7 @@
       return;
     }
     if (scriptVecchio) {
-      catalogNoticeText.textContent = 'Lo script Google pubblicato è una versione precedente: le serie si salvano, ma senza sottocategoria né segno di serie esplosiva. Ripubblica Code.gs (vedi DEPLOY.md).';
+      catalogNoticeText.textContent = 'Lo script Google pubblicato è una versione precedente: le serie si salvano, ma senza alcuni dati (per esempio la qualità di esecuzione). Ripubblica Code.gs (vedi DEPLOY.md).';
       retryCatalogBtn.hidden = true;
       catalogNotice.classList.add('visible');
       return;
@@ -1834,6 +1880,7 @@
       const set = valoreTesto(serie.set);
       if (ripetizioni || set) pezzi.push((ripetizioni || '–') + ' rip × ' + (set || '–') + ' set');
       if (serie.mono === true) pezzi.push('mono');
+      if (notaEsecuzione(serie)) pezzi.push(notaEsecuzione(serie));
       if (nota) pezzi.push(nota);
       if (dataBreve(serie.data)) pezzi.push(dataBreve(serie.data));
       dettaglio = pezzi.join(' · ');
@@ -2118,7 +2165,7 @@
           mostraStatoProgressi(true, 'Ripubblica Code.gs per leggere lo storico dal foglio: per ora dati di questo dispositivo');
           return;
         }
-        scriptVecchio = false;
+        scriptVecchio = !(Number(risposta.versione) >= VERSIONE_SCRIPT);
         ultimaLettura = Date.now();
         unisciStorico(risposta.storico, inizio);
         aggiornaAvviso();
@@ -2214,6 +2261,11 @@
     aggiornaSuggerimenti();
   });
 
+  executionBtn.addEventListener('click', () => {
+    const attuale = ESECUZIONI.findIndex((e) => e.valore === esecuzioneAttuale());
+    impostaEsecuzione(ESECUZIONI[(attuale + 1) % ESECUZIONI.length].valore);
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -2227,6 +2279,7 @@
       peso: valoreCampo(weightInput),
       mono: monoInput.checked,
       esplosiva: esplosivaAttiva(),
+      esecuzione: esecuzioneAttuale(),
       commento: commentInput.value.trim()
     };
 
@@ -2249,15 +2302,17 @@
       const risposta = await inviaAFogli(payload);
       showStatus(status, 'success', 'Salvato ✓');
       ricordaSerie(payload);
-      const vecchio = !(Number(risposta.versione) >= 2);
+      const vecchio = !(Number(risposta.versione) >= VERSIONE_SCRIPT);
       if (vecchio !== scriptVecchio) {
         scriptVecchio = vecchio;
         aggiornaAvviso();
       }
 
       // Data e gruppo restano: di solito segue un altro esercizio dello stesso
-      // gruppo. Esplosiva si spegne: ogni serie esplosiva va dichiarata.
+      // gruppo. Esplosiva si spegne ed Esecuzione torna pulita: vanno
+      // dichiarate serie per serie.
       impostaEsplosiva(false);
+      impostaEsecuzione(ESECUZIONI[0].valore);
       disegnaMenuEsercizi('');
       disegnaMenuSottocategorie('');
       applicaUltimaSerie(true);
