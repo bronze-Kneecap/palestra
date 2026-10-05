@@ -1,4 +1,4 @@
-const CACHE_NAME = 'allenamento-v8';
+const CACHE_NAME = 'allenamento-v9';
 const ASSETS = [
   './',
   './index.html',
@@ -37,10 +37,20 @@ self.addEventListener('fetch', (event) => {
   }
   if (url.origin !== self.location.origin) return;
 
-  // La pagina: prima la rete, cosi gli aggiornamenti arrivano subito.
+  // La pagina: prima la rete, cosi gli aggiornamenti arrivano subito. Ogni
+  // pagina scaricata diventa la copia per quando manca la rete: aperta senza
+  // connessione, l'app e l'ultima vista e non quella dell'installazione.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('./index.html').then((cached) => cached || Response.error()))
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match('./index.html').then((cached) => cached || Response.error()))
     );
     return;
   }

@@ -37,6 +37,7 @@ Use this agent for tasks such as:
 ## Important constraints
 
 - The sheet columns are listed in `COLONNE` in [Code.gs](../../Code.gs): Data, Gruppo muscolare, Esercizio, Sottocategoria, Ripetizioni, Set, Peso (kg), Mono, Esplosiva, Esecuzione (pulita, sporca o scorretta), Commento. Values are written by header title, and a missing column is inserted automatically next to its predecessor, so older sheets migrate without shifting existing rows.
+- Saving a set never waits for Apps Script: the app queues it in localStorage (`allenamento:serieInAttesa`) and sends it in the background, one at a time, retrying until the sheet confirms. Each set carries an `id`; `doPost` remembers written ids in `CacheService` for 6 hours, so a resend after a lost response does not write a duplicate row.
 - Fields like date, muscle group, exercise, repetitions, and sets are required.
 - Weight is optional and must remain numeric when provided.
 - The app is intended to be installed and used from mobile devices, so keep keyboard and touch ergonomics in mind.

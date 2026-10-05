@@ -857,6 +857,7 @@
   const CHIAVE_MENU = 'allenamento:menu';
   const CHIAVE_URL = 'allenamento:scriptUrl';
   const CHIAVE_ULTIME = 'allenamento:ultimeSerie';
+  const CHIAVE_CODA = 'allenamento:serieInAttesa';
   const LUNGHEZZA_MAX = 80;
 
   const $ = (id) => document.getElementById(id);
@@ -1230,15 +1231,32 @@
 
   const scriviUltimeSerie = () => store.set(CHIAVE_ULTIME, JSON.stringify(ultimeSerie));
 
+  // Le serie salvate che il foglio non ha ancora confermato, nell'ordine in
+  // cui sono state salvate. Restano qui anche chiudendo l'app.
+  let coda = (() => {
+    try {
+      const dati = JSON.parse(store.get(CHIAVE_CODA) || '[]');
+      return Array.isArray(dati) ? dati.filter((serie) => serie && typeof serie.id === 'string') : [];
+    } catch (e) {
+      return [];
+    }
+  })();
+  let erroreCoda = null; // perche l'ultimo invio non e riuscito
+
+  const scriviCoda = () => store.set(CHIAVE_CODA, JSON.stringify(coda));
+  const inCoda = (id) => !!id && coda.some((serie) => serie.id === id);
+
   // ordine dice quale voce e piu recente, anche fra sottocategorie diverse.
   const ordineMassimo = () => Object.keys(ultimeSerie)
     .reduce((massimo, chiave) => Math.max(massimo, Number(ultimeSerie[chiave].ordine) || 0), 0);
 
   // salvato: quando e stata registrata su questo dispositivo, per non
   // perderla se nel frattempo arriva una lettura del foglio partita prima.
+  // id: quello della serie in coda, finche il foglio non la conferma.
   const ricordaSerie = (payload) => {
     if (!payload.gruppoMuscolare || !payload.esercizio) return;
     ultimeSerie[chiaveSerie(payload.gruppoMuscolare, payload.esercizio, payload.sottocategoria, payload.esplosiva === true)] = {
+      id: payload.id,
       ripetizioni: payload.ripetizioni,
       set: payload.set,
       peso: payload.peso,
@@ -1251,11 +1269,21 @@
     scriviUltimeSerie();
   };
 
+  // Il foglio ha appena scritto la serie: per la lettura gia in viaggio conta
+  // come salvata adesso, perche potrebbe averla mancata.
+  const confermaSerie = (id) => {
+    Object.keys(ultimeSerie).forEach((chiave) => {
+      if (ultimeSerie[chiave].id === id) ultimeSerie[chiave].salvato = Date.now();
+    });
+    scriviUltimeSerie();
+  };
+
   // Il foglio e la fonte buona: quando risponde, la memoria prende le sue
   // voci (ordine = numero di riga). Delle voci locali restano solo quelle
-  // registrate mentre la lettura era in viaggio e quelle che il foglio non
-  // conosce con quel nome, di solito un esercizio appena rinominato: nel
-  // foglio le sue righe hanno ancora il nome vecchio.
+  // registrate o confermate mentre la lettura era in viaggio, quelle ancora
+  // in coda e quelle che il foglio non conosce con quel nome, di solito un
+  // esercizio appena rinominato: nel foglio le sue righe hanno ancora il
+  // nome vecchio.
   const unisciStorico = (storico, inizio) => {
     const nuove = Object.create(null);
     let massimo = 0;
@@ -1281,7 +1309,7 @@
     const recenti = [];
     Object.keys(ultimeSerie).forEach((chiave) => {
       const locale = ultimeSerie[chiave];
-      if ((Number(locale.salvato) || 0) >= inizio) {
+      if ((Number(locale.salvato) || 0) >= inizio || inCoda(locale.id)) {
         recenti.push(chiave);
       } else if (!possiede(nuove, chiave)) {
         nuove[chiave] = locale;
@@ -1827,23 +1855,47 @@
     screenExercises.scrollTop = scroll;
   };
 
-  // scriptVecchio: il foglio risponde ma con un Code.gs precedente, che non
-  // conosce tutti i campi della serie. Lo si capisce da versione nelle
-  // risposte, che cresce insieme a VERSIONE in Code.gs.
-  const VERSIONE_SCRIPT = 3;
+  // scriptVecchio: il foglio risponde ma con un Code.gs precedente. Lo si
+  // capisce da versione nelle risposte, che cresce insieme a VERSIONE in
+  // Code.gs; versionePubblicata e quella letta, 0 se la risposta non la dice.
+  const VERSIONE_SCRIPT = 4;
   let scriptVecchio = false;
+  let versionePubblicata = 0;
+
+  const notaVersione = (risposta) => {
+    versionePubblicata = Number(risposta && risposta.versione) || 0;
+    scriptVecchio = versionePubblicata < VERSIONE_SCRIPT;
+  };
+
+  // Cosa si perde finche lo script pubblicato resta a quella versione.
+  const cosaManca = () => (versionePubblicata < 3
+    ? 'la qualità di esecuzione non arriva nel foglio'
+    : 'una serie rimandata dopo un problema di rete può finire due volte nel foglio');
+
+  const mostraAvviso = (testo, bottone) => {
+    catalogNoticeText.textContent = testo;
+    retryCatalogBtn.hidden = !bottone;
+    retryCatalogBtn.textContent = bottone || '';
+    catalogNotice.classList.add('visible');
+  };
 
   const aggiornaAvviso = () => {
     if (!urlValido(scriptUrl)) {
-      catalogNoticeText.textContent = 'Collegamento a Google Sheets non configurato: apri la schermata Esercizi e incolla l’URL del deploy.';
-      retryCatalogBtn.hidden = false;
-      catalogNotice.classList.add('visible');
+      mostraAvviso('Collegamento a Google Sheets non configurato: apri la schermata Esercizi e incolla l’URL del deploy.', 'Configura');
+      return;
+    }
+    if (coda.length && erroreCoda) {
+      const una = coda.length === 1;
+      const quante = una ? '1 serie salvata solo sul telefono' : coda.length + ' serie salvate solo sul telefono';
+      mostraAvviso(erroreCoda.rete
+        ? quante + ': ' + (una ? 'parte da sola' : 'partono da sole') + ' appena Google Sheets risponde.'
+        : quante + '. Google Sheets risponde: ' + erroreCoda.message, 'Riprova');
       return;
     }
     if (scriptVecchio) {
-      catalogNoticeText.textContent = 'Lo script Google pubblicato è una versione precedente: le serie si salvano, ma senza alcuni dati (per esempio la qualità di esecuzione). Ripubblica Code.gs (vedi DEPLOY.md).';
-      retryCatalogBtn.hidden = true;
-      catalogNotice.classList.add('visible');
+      mostraAvviso('Lo script Google pubblicato è ' +
+        (versionePubblicata ? 'la versione ' + versionePubblicata + ', l’app usa la ' + VERSIONE_SCRIPT : 'una versione precedente') +
+        ': le serie si salvano, ma ' + cosaManca() + '. Ripubblica Code.gs (vedi DEPLOY.md).');
       return;
     }
     catalogNotice.classList.remove('visible');
@@ -1997,19 +2049,36 @@
     return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(valore);
   }
 
-  const chiamaFogli = async (url, options) => {
-    let response;
-    try {
-      response = await fetch(url, options);
-    } catch (e) {
-      throw new Error('Google Sheets non raggiungibile: controlla la connessione');
-    }
+  // Oltre questa attesa una richiesta si da per persa: una connessione
+  // appesa non deve bloccare per sempre la coda delle serie.
+  const ATTESA_MASSIMA = 40000;
 
+  // rete: l'errore e della connessione, non del foglio. Vale la pena
+  // riprovare piu tardi con la stessa richiesta.
+  const erroreRete = (messaggio) => Object.assign(new Error(messaggio), { rete: true });
+
+  const chiamaFogli = async (url, options) => {
+    const controllo = new AbortController();
+    const scadenza = setTimeout(() => controllo.abort(), ATTESA_MASSIMA);
+
+    let response;
     let testo;
     try {
-      testo = await response.text();
-    } catch (e) {
-      throw new Error('Risposta interrotta da Google Sheets');
+      try {
+        response = await fetch(url, Object.assign({ signal: controllo.signal }, options));
+      } catch (e) {
+        throw erroreRete(controllo.signal.aborted
+          ? 'Google Sheets non risponde'
+          : 'Google Sheets non raggiungibile: controlla la connessione');
+      }
+
+      try {
+        testo = await response.text();
+      } catch (e) {
+        throw erroreRete('Risposta interrotta da Google Sheets');
+      }
+    } finally {
+      clearTimeout(scadenza);
     }
 
     let dati;
@@ -2038,6 +2107,63 @@
 
   const leggiDaFogli = (azione) =>
     chiamaFogli(scriptUrl + '?action=' + encodeURIComponent(azione), { method: 'GET' });
+
+  /* ---------------------------------- coda delle serie ------------------
+     Salvare non aspetta Google Sheets, che impiega un paio di secondi a
+     rispondere: la serie entra nella coda, sul telefono, e parte subito in
+     sottofondo. Esce dalla coda solo quando il foglio conferma; se l'invio
+     non riesce resta li e riparte da sola (ritorno della rete, riapertura
+     dell'app, prossimo salvataggio o un nuovo tentativo poco dopo).
+     Le serie partono una alla volta, cosi nel foglio restano in ordine. Ogni
+     serie ha un id: se una risposta si perde per strada e la serie viene
+     rimandata, Code.gs la riconosce e non la scrive due volte.
+     -------------------------------------------------------------------- */
+
+  const nuovoId = () => Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+
+  let invioCoda = null;
+  let riprovaCoda = null;
+  let tentativiCoda = 0;
+  let appenaSalvata = false; // il prossimo esito riguarda la serie appena salvata
+
+  const svuotaCoda = () => {
+    if (invioCoda) return invioCoda;
+    clearTimeout(riprovaCoda);
+    if (!coda.length || !urlValido(scriptUrl)) return Promise.resolve();
+
+    invioCoda = (async () => {
+      while (coda.length) {
+        const serie = coda[0];
+        let risposta;
+        try {
+          risposta = await inviaAFogli(serie);
+        } catch (err) {
+          erroreCoda = err;
+          if (appenaSalvata) {
+            showStatus(status, err.rete ? 'pending' : 'error', err.rete
+              ? 'Salvato sul telefono: va nel foglio appena c’è rete'
+              : 'Non ancora nel foglio: ' + err.message, 6000);
+          }
+          // Riprova da sola, aspettando sempre di piu fino a 5 minuti.
+          riprovaCoda = setTimeout(svuotaCoda, Math.min(300000, 15000 * Math.pow(2, tentativiCoda++)));
+          console.error(err);
+          break;
+        }
+        coda = coda.filter((s) => s.id !== serie.id);
+        scriviCoda();
+        confermaSerie(serie.id);
+        notaVersione(risposta);
+        erroreCoda = null;
+        tentativiCoda = 0;
+      }
+      appenaSalvata = false;
+    })().then(() => {
+      invioCoda = null;
+      aggiornaAvviso();
+    });
+
+    return invioCoda;
+  };
 
   /* ---------------------------------- sincronizzazione dei menu ---------
      Il foglio fa solo da deposito: riceve il testo della configurazione e lo
@@ -2160,12 +2286,12 @@
     letturaInCorso = leggiDaFogli('leggiStorico')
       .then((risposta) => {
         if (!Array.isArray(risposta.storico)) {
-          scriptVecchio = true;
+          notaVersione(risposta);
           aggiornaAvviso();
           mostraStatoProgressi(true, 'Ripubblica Code.gs per leggere lo storico dal foglio: per ora dati di questo dispositivo');
           return;
         }
-        scriptVecchio = !(Number(risposta.versione) >= VERSIONE_SCRIPT);
+        notaVersione(risposta);
         ultimaLettura = Date.now();
         unisciStorico(risposta.storico, inizio);
         aggiornaAvviso();
@@ -2186,6 +2312,7 @@
 
   const aggiornaDalFoglio = () => {
     sincronizza();
+    svuotaCoda();
     aggiornaStorico();
   };
 
@@ -2266,7 +2393,7 @@
     impostaEsecuzione(ESECUZIONI[(attuale + 1) % ESECUZIONI.length].valore);
   });
 
-  form.addEventListener('submit', async (e) => {
+  form.addEventListener('submit', (e) => {
     e.preventDefault();
 
     const payload = {
@@ -2295,36 +2422,27 @@
     if (!(Number(payload.set) >= 1)) { showStatus(status, 'error', 'I set devono essere almeno 1'); setsInput.focus(); return; }
     if (payload.peso !== '' && !(Number(payload.peso) >= 0)) { showStatus(status, 'error', 'Il peso non può essere negativo'); weightInput.focus(); return; }
 
-    submitBtn.disabled = true;
-    showStatus(status, 'pending', 'Invio in corso…', 0);
+    // Da qui la serie e salvata: la coda la porta al foglio in sottofondo.
+    payload.id = nuovoId();
+    coda.push(payload);
+    scriviCoda();
+    ricordaSerie(payload);
+    showStatus(status, 'success', 'Salvato ✓');
 
-    try {
-      const risposta = await inviaAFogli(payload);
-      showStatus(status, 'success', 'Salvato ✓');
-      ricordaSerie(payload);
-      const vecchio = !(Number(risposta.versione) >= VERSIONE_SCRIPT);
-      if (vecchio !== scriptVecchio) {
-        scriptVecchio = vecchio;
-        aggiornaAvviso();
-      }
+    // Data e gruppo restano: di solito segue un altro esercizio dello stesso
+    // gruppo. Esplosiva si spegne ed Esecuzione torna pulita: vanno
+    // dichiarate serie per serie.
+    impostaEsplosiva(false);
+    impostaEsecuzione(ESECUZIONI[0].valore);
+    disegnaMenuEsercizi('');
+    disegnaMenuSottocategorie('');
+    applicaUltimaSerie(true);
+    disegnaProgressi();
+    commentInput.value = '';
+    if (!exerciseInput.disabled) exerciseInput.focus();
 
-      // Data e gruppo restano: di solito segue un altro esercizio dello stesso
-      // gruppo. Esplosiva si spegne ed Esecuzione torna pulita: vanno
-      // dichiarate serie per serie.
-      impostaEsplosiva(false);
-      impostaEsecuzione(ESECUZIONI[0].valore);
-      disegnaMenuEsercizi('');
-      disegnaMenuSottocategorie('');
-      applicaUltimaSerie(true);
-      disegnaProgressi();
-      commentInput.value = '';
-      if (!exerciseInput.disabled) exerciseInput.focus();
-    } catch (err) {
-      showStatus(status, 'error', err.message, 6000);
-      console.error(err);
-    } finally {
-      submitBtn.disabled = false;
-    }
+    appenaSalvata = true;
+    svuotaCoda();
   });
 
   /* ------------------------------------------- collegamento configurabile */
@@ -2498,8 +2616,13 @@
   document.addEventListener('focusin', () => setTimeout(mostraCampoAttivo, 350));
   document.addEventListener('focusout', () => setTimeout(() => { if (vv) adattaAllaTastiera(); }, 50));
 
-  // L'avviso della prima schermata porta dritto al campo da riempire.
+  // L'avviso della prima schermata porta dritto al campo da riempire, o
+  // rimanda subito le serie in attesa.
   retryCatalogBtn.addEventListener('click', () => {
+    if (urlValido(scriptUrl)) {
+      svuotaCoda();
+      return;
+    }
     setScreen(1);
     const impostazioni = document.querySelector('.settings');
     if (impostazioni) impostazioni.open = true;

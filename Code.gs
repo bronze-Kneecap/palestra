@@ -2,7 +2,8 @@
  * Backend minimo per l'app Allenamento.
  *
  * Fa tre cose sole:
- *   1. riceve una serie dalla prima schermata e la scrive in fondo al foglio;
+ *   1. riceve una serie dalla prima schermata e la scrive in fondo al foglio,
+ *      una volta sola anche se l'app la manda di nuovo;
  *   2. rilegge il foglio e restituisce l'ultima serie di ogni esercizio, per
  *      la schermata Progressi e per i suggerimenti della prima schermata;
  *   3. parcheggia e restituisce la configurazione dei menu, cosi l'app ritrova
@@ -20,12 +21,19 @@ const CONFIG = {
   sheetName: 'Allenamenti'
 };
 
-// Cresce quando cambia cio che il foglio sa salvare: l'app la legge nelle
-// risposte e avvisa se lo script pubblicato e rimasto indietro.
-const VERSIONE = 3;
+// Cresce quando cambia cio che lo script sa fare: l'app la legge nelle
+// risposte e avvisa se quello pubblicato e rimasto indietro.
+//   3: colonna Esecuzione
+//   4: una serie rimandata con lo stesso id non viene scritta due volte
+const VERSIONE = 4;
 
 const CONFIG_SHEET_NAME = 'Configurazione';
 const CONFIG_MAX_CARATTERI = 45000; // una cella di Sheets ne regge 50.000
+
+// L'app salva la serie sul telefono e la manda in sottofondo: se la risposta
+// si perde per strada la rimanda, con lo stesso id. Gli id gia scritti si
+// ricordano per 6 ore, il massimo che la cache di Apps Script concede.
+const SERIE_RICORDATE_SECONDI = 21600;
 
 // Le colonne del foglio, nell'ordine in cui vengono create. La riga si scrive
 // cercando ogni titolo nell'intestazione, non per posizione: cosi una colonna
@@ -91,11 +99,22 @@ function doPost(event) {
       return jsonResponse({ result: 'success', message: 'Configurazione salvata' });
     }
 
+    const id = text(payload.id).slice(0, 100);
+    const cache = CacheService.getScriptCache();
+
     const lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
-      const sheet = getSheet();
-      sheet.appendRow(buildRow(payload, ensureHeaders(sheet)));
+      if (!id || !cache.get('serie:' + id)) {
+        const sheet = getSheet();
+        sheet.appendRow(buildRow(payload, ensureHeaders(sheet)));
+        // La riga c'e gia: un errore della cache non deve farla rimandare.
+        try {
+          if (id) cache.put('serie:' + id, '1', SERIE_RICORDATE_SECONDI);
+        } catch (cacheError) {
+          console.error(cacheError);
+        }
+      }
     } finally {
       lock.releaseLock();
     }
