@@ -1468,7 +1468,8 @@
 
   // Cambiando esercizio i numeri scritti per quello di prima non hanno piu
   // senso e si svuotano (svuota); cambiando solo sottocategoria restano.
-  // Mono non ha un placeholder: riprende direttamente l'ultimo valore.
+  // Mono ed Esecuzione non hanno un placeholder: riprendono direttamente
+  // l'ultimo valore. Senza precedenti l'esecuzione parte pulita.
   const applicaUltimaSerie = (svuota) => {
     if (svuota) {
       repetitionsInput.value = '';
@@ -1477,6 +1478,7 @@
     }
     const serie = serieRicordata();
     monoInput.checked = !!serie && serie.mono === true;
+    impostaEsecuzione(serie ? valoreTesto(serie.esecuzione).toLowerCase() : ESECUZIONI[0].valore);
     aggiornaSuggerimenti();
   };
 
