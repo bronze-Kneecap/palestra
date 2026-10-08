@@ -1,18 +1,20 @@
 /**
  * Backend minimo per l'app Allenamento.
  *
- * Fa tre cose sole:
+ * Fa quattro cose sole:
  *   1. riceve una serie dalla prima schermata e la scrive in fondo al foglio,
  *      una volta sola anche se l'app la manda di nuovo;
  *   2. rilegge il foglio e restituisce l'ultima serie di ogni esercizio, per
  *      la schermata Progressi e per i suggerimenti della prima schermata;
  *   3. parcheggia e restituisce la configurazione dei menu, cosi l'app ritrova
- *      le stesse tendine su qualunque dispositivo.
+ *      le stesse tendine su qualunque dispositivo;
+ *   4. colora la colonna Gruppo muscolare con i colori scelti nell'app.
  *
  * Non conosce i gruppi muscolari ne gli esercizi: arrivano come testo e come
- * testo vengono scritti, senza controlli. Anche la configurazione e testo
- * opaco, mai interpretato qui: il filtro vive nell'applicazione (index.html),
- * dove e piu comodo modificarlo.
+ * testo vengono scritti, senza controlli. Anche la configurazione e salvata
+ * come testo opaco: qui se ne leggono solo nome e colore dei gruppi, per il
+ * punto 4. Il filtro vive nell'applicazione (index.html), dove e piu comodo
+ * modificarlo.
  */
 
 const CONFIG = {
@@ -25,10 +27,28 @@ const CONFIG = {
 // risposte e avvisa se quello pubblicato e rimasto indietro.
 //   3: colonna Esecuzione
 //   4: una serie rimandata con lo stesso id non viene scritta due volte
-const VERSIONE = 4;
+//   5: colori dei gruppi muscolari nel foglio
+const VERSIONE = 5;
 
 const CONFIG_SHEET_NAME = 'Configurazione';
 const CONFIG_MAX_CARATTERI = 45000; // una cella di Sheets ne regge 50.000
+
+// Gli stessi colori dei gruppi dell'app (--c-* e --on-* in index.html): lo
+// sfondo e il testo che ci va sopra, nero ovunque tranne sull'indaco.
+const COLORI_GRUPPI = {
+  rosso:     { sfondo: '#FF453A', testo: '#000000' },
+  arancione: { sfondo: '#FF9F0A', testo: '#000000' },
+  giallo:    { sfondo: '#FFD60A', testo: '#000000' },
+  verde:     { sfondo: '#30D158', testo: '#000000' },
+  menta:     { sfondo: '#63E6E2', testo: '#000000' },
+  azzurro:   { sfondo: '#64D2FF', testo: '#000000' },
+  blu:       { sfondo: '#0A84FF', testo: '#000000' },
+  indaco:    { sfondo: '#5E5CE6', testo: '#FFFFFF' },
+  viola:     { sfondo: '#BF5AF2', testo: '#000000' },
+  rosa:      { sfondo: '#FF375F', testo: '#000000' },
+  marrone:   { sfondo: '#AC8E68', testo: '#000000' },
+  grigio:    { sfondo: '#98989D', testo: '#000000' }
+};
 
 // L'app salva la serie sul telefono e la manda in sottofondo: se la risposta
 // si perde per strada la rimanda, con lo stesso id. Gli id gia scritti si
@@ -226,8 +246,9 @@ function dataTesto(valore, fuso) {
 
 /**
  * Configurazione dei menu: un testo qualunque, scritto e riletto identico.
- * Qui dentro non viene mai analizzato, quindi aggiungere o togliere campi
- * nell'app non richiede di ritoccare questo file.
+ * Qui dentro se ne leggono solo gruppo e colore di ogni voce (per
+ * aggiornaColoriGruppi), quindi aggiungere o togliere altri campi nell'app
+ * non richiede di ritoccare questo file.
  */
 function leggiConfigurazione() {
   const valore = getConfigSheet().getRange(2, 1).getValue();
@@ -240,6 +261,57 @@ function scriviConfigurazione(testo) {
     throw new Error('Configurazione troppo lunga per una cella del foglio');
   }
   getConfigSheet().getRange(2, 1).setValue(contenuto);
+
+  // I colori sono un di piu: se non si riesce ad applicarli, la
+  // configurazione resta salvata lo stesso.
+  try {
+    aggiornaColoriGruppi();
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+/**
+ * Colora la colonna Gruppo muscolare con i colori dei gruppi scelti nell'app:
+ * una regola di formattazione condizionale per gruppo, dalla riga 2 a fine
+ * colonna. Le regole che stanno tutte su quella colonna vengono sostituite,
+ * le altre (Esecuzione comprese) restano come sono.
+ *
+ * Parte da sola a ogni salvataggio della configurazione; si puo anche
+ * eseguire a mano dall'editor di Apps Script per applicarla subito.
+ */
+function aggiornaColoriGruppi() {
+  const testo = leggiConfigurazione();
+  if (!testo) return;
+  const dati = JSON.parse(testo);
+  const voci = dati && Array.isArray(dati.voci) ? dati.voci : [];
+
+  const sheet = getSheet();
+  const indice = cercaColonna(leggiIntestazioni(sheet), 'Gruppo muscolare');
+  if (indice === -1) return;
+  const colonna = indice + 1;
+  const intervallo = sheet.getRange(2, colonna, sheet.getMaxRows() - 1, 1);
+
+  // Un colore che questo file non conosce si salta, senza errori.
+  const nuove = [];
+  voci.forEach((voce) => {
+    const gruppo = text(voce && voce.gruppo);
+    if (!gruppo || !Object.prototype.hasOwnProperty.call(COLORI_GRUPPI, voce.colore)) return;
+    const colore = COLORI_GRUPPI[voce.colore];
+    nuove.push(SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo(gruppo)
+      .setBackground(colore.sfondo)
+      .setFontColor(colore.testo)
+      .setRanges([intervallo])
+      .build());
+  });
+  // Senza nessun gruppo valido si lasciano le regole che ci sono.
+  if (!nuove.length) return;
+
+  const altre = sheet.getConditionalFormatRules().filter((regola) => !regola.getRanges().every(
+    (range) => range.getColumn() === colonna && range.getLastColumn() === colonna
+  ));
+  sheet.setConditionalFormatRules(altre.concat(nuove));
 }
 
 function getConfigSheet() {
