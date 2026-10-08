@@ -2,13 +2,14 @@
  * Backend minimo per l'app Allenamento.
  *
  * Fa quattro cose sole:
- *   1. riceve una serie dalla prima schermata e la scrive in fondo al foglio,
- *      una volta sola anche se l'app la manda di nuovo;
+ *   1. riceve una serie dalla prima schermata e la scrive sotto l'ultima riga
+ *      con la data, una volta sola anche se l'app la manda di nuovo;
  *   2. rilegge il foglio e restituisce l'ultima serie di ogni esercizio, per
  *      la schermata Progressi e per i suggerimenti della prima schermata;
  *   3. parcheggia e restituisce la configurazione dei menu, cosi l'app ritrova
  *      le stesse tendine su qualunque dispositivo;
- *   4. colora la colonna Gruppo muscolare con i colori scelti nell'app.
+ *   4. colora la colonna Gruppo muscolare con i colori scelti nell'app (per
+ *      ora in pausa, vedi COLORA_GRUPPI).
  *
  * Non conosce i gruppi muscolari ne gli esercizi: arrivano come testo e come
  * testo vengono scritti, senza controlli. Anche la configurazione e salvata
@@ -28,10 +29,15 @@ const CONFIG = {
 //   3: colonna Esecuzione
 //   4: una serie rimandata con lo stesso id non viene scritta due volte
 //   5: colori dei gruppi muscolari nel foglio
-const VERSIONE = 5;
+//   6: la serie va sotto l'ultima data, anche con checkbox e tendine pronte
+const VERSIONE = 6;
 
 const CONFIG_SHEET_NAME = 'Configurazione';
 const CONFIG_MAX_CARATTERI = 45000; // una cella di Sheets ne regge 50.000
+
+// I colori dei gruppi nel foglio sono in pausa: con true tornano ad
+// aggiornarsi a ogni salvataggio dei menu.
+const COLORA_GRUPPI = false;
 
 // Gli stessi colori dei gruppi dell'app (--c-* e --on-* in index.html): lo
 // sfondo e il testo che ci va sopra, nero ovunque tranne sull'indaco.
@@ -127,7 +133,9 @@ function doPost(event) {
     try {
       if (!id || !cache.get('serie:' + id)) {
         const sheet = getSheet();
-        sheet.appendRow(buildRow(payload, ensureHeaders(sheet)));
+        scriviSerie(sheet, payload, ensureHeaders(sheet));
+        // Prima di lasciare il lock: la serie dopo deve gia vedere questa data.
+        SpreadsheetApp.flush();
         // La riga c'e gia: un errore della cache non deve farla rimandare.
         try {
           if (id) cache.put('serie:' + id, '1', SERIE_RICORDATE_SECONDI);
@@ -147,18 +155,30 @@ function doPost(event) {
 }
 
 /**
- * Costruisce la riga da scrivere, mettendo ogni valore sotto la sua colonna.
+ * Scrive la serie nella riga subito sotto l'ultima con la data. Niente
+ * appendRow: le checkbox e le tendine preparate nel foglio contano come celle
+ * occupate, e la serie finirebbe in fondo, dopo tutte quelle righe.
+ *
+ * Ogni valore va nella sua cella, una per una: checkbox e tendine restano
+ * (cambia solo il valore) e le colonne aggiunte a mano non vengono toccate.
  * Gruppo muscolare, esercizio e sottocategoria non vengono filtrati: passano
  * cosi come li manda l'app. Ripetizioni, set e peso restano numeri quando
  * sono numeri, cosi il foglio puo fare somme e medie.
  */
-function buildRow(payload, posizioni) {
-  const row = [];
-  for (let i = 0; i < Math.max.apply(null, posizioni); i++) row.push('');
+function scriviSerie(sheet, payload, posizioni) {
+  const colonnaData = posizioni[0]; // Data e la prima delle COLONNE
+  const ultima = sheet.getLastRow();
+  const date = ultima < 2 ? [] : sheet.getRange(2, colonnaData, ultima - 1, 1).getValues();
+  let piene = date.length;
+  while (piene > 0 && text(date[piene - 1][0]) === '') piene--;
+  const riga = piene + 2;
+
+  // Righe preparate finite: se ne aggiunge una, senza checkbox ne tendine.
+  if (riga > sheet.getMaxRows()) sheet.insertRowAfter(sheet.getMaxRows());
+
   COLONNE.forEach((colonna, i) => {
-    row[posizioni[i] - 1] = colonna.valore(payload);
+    sheet.getRange(riga, posizioni[i]).setValue(colonna.valore(payload));
   });
-  return row;
 }
 
 function text(value) {
@@ -264,10 +284,12 @@ function scriviConfigurazione(testo) {
 
   // I colori sono un di piu: se non si riesce ad applicarli, la
   // configurazione resta salvata lo stesso.
-  try {
-    aggiornaColoriGruppi();
-  } catch (error) {
-    console.error(error);
+  if (COLORA_GRUPPI) {
+    try {
+      aggiornaColoriGruppi();
+    } catch (error) {
+      console.error(error);
+    }
   }
 }
 
@@ -277,8 +299,9 @@ function scriviConfigurazione(testo) {
  * colonna. Le regole che stanno tutte su quella colonna vengono sostituite,
  * le altre (Esecuzione comprese) restano come sono.
  *
- * Parte da sola a ogni salvataggio della configurazione; si puo anche
- * eseguire a mano dall'editor di Apps Script per applicarla subito.
+ * Parte da sola a ogni salvataggio della configurazione se COLORA_GRUPPI e
+ * true; si puo anche eseguire a mano dall'editor di Apps Script per
+ * applicarla subito.
  */
 function aggiornaColoriGruppi() {
   const testo = leggiConfigurazione();
