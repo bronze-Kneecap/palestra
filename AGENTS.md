@@ -17,5 +17,7 @@ Prima di agire:
 
 - Ogni volta che crei un commit, esegui subito anche `git push origin <branch>`.
 - Dopo il push verifica che il branch locale e `origin/<branch>` siano allineati con `git status`.
+- Ogni commit va sempre anche su `main`, senza chiedere conferma e senza aprire pull request: subito dopo il push del branch esegui `git push origin HEAD:main`. Il proprietario non revisiona il codice, valuta solo il risultato provando l'app, e puo provarla soltanto da `main`.
+- Se `main` e andato avanti, prima integra `origin/main` nel tuo branch e poi fai il push; mai `--force` su `main`. Alla fine controlla che `origin/main` punti al tuo ultimo commit.
 
 L'obiettivo e mantenere il repository leggero, riproducibile e composto soltanto da sorgenti puliti e file necessari al funzionamento del progetto.
