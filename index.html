@@ -407,6 +407,10 @@
     .chip .icon { display: none; }
     .chip.esecuzione { flex-basis: 5.8em; }
   }
+  @media (max-width: 279px) {
+    .chip { padding: 0 4px; font-size: 11px; }
+    .chip.esecuzione { flex: 0 1 5.4em; }
+  }
 
   /* Aumenta e un promemoria per la volta dopo: lilla, per non confondersi
      con l'arancione di Esplosiva. Con un'esecuzione sporca o scorretta non
@@ -1457,6 +1461,18 @@
 
   const valoreCampo = (input) => input.value.trim() || input.dataset.suggerito || '';
 
+  // Il campo Commento cresce fino a mostrare tutto il testo, scritto o in
+  // grigio. Il grigio si misura mettendolo per un attimo come valore: non
+  // tutti i browser contano il placeholder nell'altezza.
+  const adattaCommento = () => {
+    const scritto = commentInput.value;
+    commentInput.style.height = 'auto';
+    if (!scritto) commentInput.value = commentInput.placeholder;
+    const altezza = commentInput.scrollHeight;
+    commentInput.value = scritto;
+    commentInput.style.height = altezza + 'px';
+  };
+
   // Il commento dell'ultima serie si vede in grigio allo stesso modo, ma a
   // differenza dei numeri non vale nulla: se non se ne scrive uno nuovo la
   // serie si salva senza commento.
@@ -1469,6 +1485,7 @@
     const commento = valoreTesto(serie.commento);
     commentInput.placeholder = commento || 'Commento';
     commentInput.classList.toggle('suggerito', commento !== '');
+    adattaCommento();
   };
 
   const impostaEsplosiva = (attiva) => {
@@ -1484,7 +1501,16 @@
   // direttamente l'ultimo valore, cosi salvando senza toccare nulla la serie
   // e uguale all'ultima. Senza precedenti l'esecuzione parte pulita e Aumenta
   // spento; Aumenta resta spento anche se l'ultima esecuzione non era pulita.
+  // Vale anche accendendo o spegnendo Esplosiva, che cambia serie di
+  // riferimento.
+  //
+  // controlliToccati: Mono, Esecuzione o Aumenta cambiati a mano da allora.
+  // Se lo storico del foglio arriva dopo, i tre bottoni si riallineano solo
+  // se non sono stati toccati.
+  let controlliToccati = false;
+
   const applicaUltimaSerie = (svuota) => {
+    controlliToccati = false;
     if (svuota) {
       repetitionsInput.value = '';
       setsInput.value = '';
@@ -2324,7 +2350,8 @@
         ultimaLettura = Date.now();
         unisciStorico(risposta.storico, inizio);
         aggiornaAvviso();
-        aggiornaSuggerimenti();
+        if (controlliToccati) aggiornaSuggerimenti();
+        else applicaUltimaSerie(false);
         disegnaProgressi();
         const ora = new Date();
         mostraStatoProgressi(false, 'Aggiornato alle ' + ora.getHours() + ':' + String(ora.getMinutes()).padStart(2, '0'));
@@ -2414,15 +2441,23 @@
 
   explosiveBtn.addEventListener('click', () => {
     impostaEsplosiva(!esplosivaAttiva());
-    aggiornaSuggerimenti();
+    applicaUltimaSerie(false);
   });
+
+  monoInput.addEventListener('change', () => { controlliToccati = true; });
 
   executionBtn.addEventListener('click', () => {
     const attuale = ESECUZIONI.findIndex((e) => e.valore === esecuzioneAttuale());
     impostaEsecuzione(ESECUZIONI[(attuale + 1) % ESECUZIONI.length].valore);
+    controlliToccati = true;
   });
 
-  increaseBtn.addEventListener('click', () => impostaAumenta(!aumentaAttiva()));
+  increaseBtn.addEventListener('click', () => {
+    impostaAumenta(!aumentaAttiva());
+    controlliToccati = true;
+  });
+
+  commentInput.addEventListener('input', adattaCommento);
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -2472,6 +2507,7 @@
     applicaUltimaSerie(true);
     disegnaProgressi();
     commentInput.value = '';
+    adattaCommento();
     if (!exerciseInput.disabled) exerciseInput.focus();
 
     appenaSalvata = true;
