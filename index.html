@@ -38,6 +38,7 @@
     --success: #30D158;
     --error: #FF453A;
     --warning: #FF9F0A;
+    --lilla: #CBA6F7;
     --bar: #121214;
     --radius: 12px;
     --nav-height: 52px;
@@ -409,14 +410,14 @@
      vanno a capo: Aumenta dipende da com'e andata l'esecuzione. */
   .chips-coppia { display: flex; gap: 8px; }
 
-  /* Aumenta e un promemoria per la volta dopo: blu come l'accento, per non
-     confondersi con l'arancione di Esplosiva. Con un'esecuzione sporca o
-     scorretta non si aumenta, e il bottone resta spento. */
-  .chip.aumenta[aria-pressed="true"] { background: var(--accent); color: #000; }
+  /* Aumenta e un promemoria per la volta dopo: lilla, per non confondersi
+     con l'arancione di Esplosiva. Con un'esecuzione sporca o scorretta non
+     si aumenta, e il bottone resta spento. */
+  .chip.aumenta[aria-pressed="true"] { background: var(--lilla); color: #000; }
   .chip:disabled { opacity: 0.4; cursor: default; }
 
   /* L'ultima serie aveva Aumenta: si fa notare piu della riga grigia,
-     perche e una cosa da fare adesso. */
+     perche e una cosa da fare adesso. Lilla come il bottone. */
   .reminder {
     display: none;
     align-items: center;
@@ -424,8 +425,8 @@
     margin: -8px 0 20px;
     padding: 10px 16px;
     border-radius: var(--radius);
-    background: rgba(10, 132, 255, 0.16);
-    color: var(--accent);
+    background: rgba(203, 166, 247, 0.16);
+    color: var(--lilla);
     font-size: 15px;
     font-weight: 500;
     line-height: 1.35;
