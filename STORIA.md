@@ -172,3 +172,10 @@ una descrizione e degli obiettivi da usare come linee guida, per esempio di
 UX o di efficienza.
 
 **Fatto:** `CLAUDE.md`, che Claude Code legge a ogni sessione, e questo file.
+
+**Richiesta 2:** un progetto "palestra" che tenga in memoria non le singole
+indicazioni, ma lo stile e il modo di pensare emersi nelle chat.
+
+**Fatto:** `PROFILO.md`, ricavato dai messaggi originali di tutte le chat.
+`CLAUDE.md` ora carica sia `PROFILO.md` sia `AGENTS.md`: da quando esiste
+`CLAUDE.md`, Claude Code non leggeva piu `AGENTS.md` da solo.

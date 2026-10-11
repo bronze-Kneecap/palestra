@@ -5,10 +5,18 @@ posto solo quello che e emerso nelle chat sul progetto: cos'e l'app, a cosa
 deve tendere e come ci si lavora. La cronologia delle chat, con le richieste
 e le decisioni di ognuna, e in [STORIA.md](STORIA.md).
 
-Le regole sul repository e sul push sono in [AGENTS.md](AGENTS.md) e valgono
-sempre. La piu importante: ogni commit va sul branch di lavoro **e subito
-anche su `main`** (`git push origin HEAD:main`), senza chiedere e senza pull
-request, perche il proprietario prova l'app solo da `main`.
+Insieme a questo file si caricano altri due file, e valgono sempre:
+
+- le regole sul repository e sul push. La piu importante: ogni commit va sul
+  branch di lavoro **e subito anche su `main`** (`git push origin HEAD:main`),
+  senza chiedere e senza pull request, perche il proprietario prova l'app
+  solo da `main`;
+- il profilo del proprietario: come ragiona, come chiede e come vuole le
+  risposte.
+
+@AGENTS.md
+
+@PROFILO.md
 
 ## Il progetto
 
@@ -204,14 +212,12 @@ In `Code.gs`:
 
 ### Come rispondere al proprietario
 
-- Italiano semplice, senza gergo tecnico. Parti da quello che trova nell'app.
-- Di' sempre se deve ripubblicare `Code.gs`, si o no: lo chiede quasi ogni
-  volta.
-- Elenca le scelte fatte di tua iniziativa e quello che non hai potuto
-  verificare.
-- Ricorda che l'aggiornamento arriva chiudendo e riaprendo l'app, dopo
+Il tono e il modo sono in `PROFILO.md`. In piu, per questo progetto:
+
+- di' sempre se va ripubblicato `Code.gs`, si o no;
+- di' quello che non hai potuto verificare, per esempio su un iPhone vero;
+- ricorda che l'aggiornamento arriva chiudendo e riaprendo l'app, dopo
   qualche minuto.
-- Al massimo una domanda, e solo se serve, proponendo gia una risposta.
 
 ## Stato al 11/10/2026
 
