@@ -31,7 +31,8 @@ const CONFIG = {
 //   5: colori dei gruppi muscolari nel foglio
 //   6: la serie va sotto l'ultima data, anche con checkbox e tendine pronte
 //   7: colonna Aumenta
-const VERSIONE = 7;
+//   8: lo storico restituisce anche il commento
+const VERSIONE = 8;
 
 const CONFIG_SHEET_NAME = 'Configurazione';
 const CONFIG_MAX_CARATTERI = 45000; // una cella di Sheets ne regge 50.000
@@ -252,6 +253,7 @@ function leggiStorico() {
       esplosiva: esplosiva,
       aumenta: booleano(cella(riga, 'Aumenta')),
       esecuzione: text(cella(riga, 'Esecuzione')),
+      commento: text(cella(riga, 'Commento')),
       riga: i + 2
     });
   }

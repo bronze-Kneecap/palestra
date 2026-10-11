@@ -322,16 +322,6 @@
     background: var(--g, var(--fill));
   }
 
-  /* Riga discreta sotto la scheda: cosa si e fatto l'ultima volta */
-  .hint {
-    display: none;
-    margin: -16px 16px 20px;
-    font-size: 13px;
-    line-height: 1.4;
-    color: var(--label-2);
-  }
-  .hint.visible { display: block; }
-
   /* Tre numeri grandi affiancati, come i selettori di Orologio. Il grigio
      chiaro e l'ultima serie (vale se il campo resta vuoto), il bianco e un
      numero scritto adesso. */
@@ -372,26 +362,33 @@
   .number input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .number input.suggerito::placeholder { color: var(--label-2); }
 
-  /* Interruttori a capsula: Mono, Esplosiva, Esecuzione e Aumenta */
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 24px; }
+  /* Interruttori a capsula: Mono, Esplosiva, Esecuzione e Aumenta, sempre su
+     una riga sola. Si dividono la larghezza; sugli schermi stretti il testo
+     rimpicciolisce e, sotto i 360 px, le icone lasciano il posto alle
+     parole. */
+  .chips { display: flex; gap: 6px; margin: 0 0 24px; }
   .chip {
     position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    gap: 4px;
     height: 36px;
-    padding: 0 16px;
+    padding: 0 8px;
     border-radius: 18px;
     background: var(--fill);
     color: var(--label);
-    font-size: 15px;
+    font-size: clamp(12px, 3.6vw, 15px);
     font-weight: 500;
+    white-space: nowrap;
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
     transition: background-color 0.2s, color 0.2s;
   }
-  .chip .icon { width: 16px; height: 16px; stroke-width: 2; }
+  .chip .icon { width: 1.05em; height: 1.05em; stroke-width: 2; }
   .chip input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
   .chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
   .chip:has(input:checked) { background: var(--label); color: #000; }
@@ -399,40 +396,24 @@
 
   /* Esecuzione e sempre colorata, come un semaforo. Il giallo di Sporca la
      tiene distinta dall'arancione di Esplosiva. La larghezza e quella della
-     voce piu lunga, cosi passando da una all'altra il bottone non cambia
-     misura. */
-  .chip.esecuzione { justify-content: center; min-width: 120px; color: #000; }
+     voce piu lunga, cosi passando da una all'altra le capsule non si
+     spostano. */
+  .chip.esecuzione { flex: 0 0 7.2em; color: #000; }
   .chip.esecuzione[data-esecuzione="pulita"] { background: var(--c-verde); }
   .chip.esecuzione[data-esecuzione="sporca"] { background: var(--c-giallo); }
   .chip.esecuzione[data-esecuzione="scorretta"] { background: var(--c-rosso); }
 
-  /* Esecuzione e Aumenta vanno sempre insieme, anche quando le capsule
-     vanno a capo: Aumenta dipende da com'e andata l'esecuzione. */
-  .chips-coppia { display: flex; gap: 8px; }
+  @media (max-width: 359px) {
+    .chip .icon { display: none; }
+    .chip.esecuzione { flex-basis: 5.8em; }
+  }
 
   /* Aumenta e un promemoria per la volta dopo: lilla, per non confondersi
      con l'arancione di Esplosiva. Con un'esecuzione sporca o scorretta non
-     si aumenta, e il bottone resta spento. */
+     si aumenta, e il bottone resta spento. Accanto a Esecuzione, perche ne
+     dipende. */
   .chip.aumenta[aria-pressed="true"] { background: var(--lilla); color: #000; }
   .chip:disabled { opacity: 0.4; cursor: default; }
-
-  /* L'ultima serie aveva Aumenta: si fa notare piu della riga grigia,
-     perche e una cosa da fare adesso. Lilla come il bottone. */
-  .reminder {
-    display: none;
-    align-items: center;
-    gap: 8px;
-    margin: -8px 0 20px;
-    padding: 10px 16px;
-    border-radius: var(--radius);
-    background: rgba(203, 166, 247, 0.16);
-    color: var(--lilla);
-    font-size: 15px;
-    font-weight: 500;
-    line-height: 1.35;
-  }
-  .reminder.visible { display: flex; }
-  .reminder .icon { width: 18px; height: 18px; stroke-width: 2.2; }
 
   .comment textarea {
     display: block;
@@ -445,6 +426,7 @@
     font-size: 17px;
   }
   .comment textarea:focus { outline: none; }
+  .comment textarea.suggerito::placeholder { color: var(--label-2); }
   .comment:focus-within { box-shadow: inset 0 0 0 2px var(--card-2); }
 
   /* Il bottone principale prende il colore del gruppo scelto; senza gruppo
@@ -731,13 +713,6 @@
             </div>
           </div>
 
-          <p class="hint" id="lastSeriesHint"></p>
-
-          <p class="reminder" id="increaseReminder">
-            <svg class="icon" aria-hidden="true"><use href="#i-arrow-up"/></svg>
-            L’ultima volta ti sei detto di aumentare il peso
-          </p>
-
           <div class="card numbers">
             <label class="number">
               <span class="number-label">Ripetizioni</span>
@@ -764,18 +739,16 @@
               <svg class="icon" aria-hidden="true"><use href="#i-bolt"/></svg>
               Esplosiva
             </button>
-            <span class="chips-coppia">
-              <!-- Qualita di esecuzione: ogni tocco passa alla successiva -->
-              <button type="button" id="execution" class="chip esecuzione" data-esecuzione="pulita" aria-label="Esecuzione pulita">
-                <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
-                Pulita
-              </button>
-              <!-- Promemoria: la prossima volta aumenta il peso -->
-              <button type="button" id="increase" class="chip aumenta" aria-pressed="false">
-                <svg class="icon" aria-hidden="true"><use href="#i-arrow-up"/></svg>
-                Aumenta
-              </button>
-            </span>
+            <!-- Qualita di esecuzione: ogni tocco passa alla successiva -->
+            <button type="button" id="execution" class="chip esecuzione" data-esecuzione="pulita" aria-label="Esecuzione pulita">
+              <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
+              Pulita
+            </button>
+            <!-- Promemoria: la prossima volta aumenta il peso -->
+            <button type="button" id="increase" class="chip aumenta" aria-pressed="false">
+              <svg class="icon" aria-hidden="true"><use href="#i-arrow-up"/></svg>
+              Aumenta
+            </button>
           </div>
 
           <div class="card comment">
@@ -923,9 +896,7 @@
   const explosiveBtn = $('explosive');
   const executionBtn = $('execution');
   const increaseBtn = $('increase');
-  const increaseReminder = $('increaseReminder');
   const commentInput = $('comment');
-  const lastSeriesHint = $('lastSeriesHint');
 
   const catalogNotice = $('catalogNotice');
   const catalogNoticeText = $('catalogNoticeText');
@@ -1309,6 +1280,7 @@
       mono: payload.mono === true,
       aumenta: payload.aumenta === true,
       esecuzione: payload.esecuzione,
+      commento: payload.commento,
       data: payload.data,
       ordine: ordineMassimo() + 1,
       salvato: Date.now()
@@ -1349,6 +1321,7 @@
         mono: voce.mono === true,
         aumenta: voce.aumenta === true,
         esecuzione: valoreTesto(voce.esecuzione),
+        commento: valoreTesto(voce.commento),
         data: valoreTesto(voce.data),
         ordine
       };
@@ -1472,24 +1445,6 @@
     return data ? data[3] + '/' + data[2] : '';
   };
 
-  const descriviSerie = (serie) => {
-    const pezzi = [];
-    const ripetizioni = valoreTesto(serie.ripetizioni);
-    const set = valoreTesto(serie.set);
-    if (ripetizioni && set) pezzi.push(ripetizioni + ' × ' + set + ' set');
-    else if (ripetizioni) pezzi.push(ripetizioni + ' ripetizioni');
-    else if (set) pezzi.push(set + ' set');
-
-    const peso = valoreTesto(serie.peso);
-    if (peso) pezzi.push(peso + ' kg');
-    if (serie.mono === true) pezzi.push('mono');
-    if (notaEsecuzione(serie)) pezzi.push(notaEsecuzione(serie));
-    if (!pezzi.length) return '';
-
-    const quando = dataBreve(serie.data);
-    return 'Ultima serie' + (esplosivaAttiva() ? ' esplosiva' : '') + (quando ? ' del ' + quando : '') + ': ' + pezzi.join(' · ');
-  };
-
   // I numeri dell'ultima serie non riempiono i campi: compaiono in grigio
   // come placeholder. Un campo lasciato vuoto vale quel numero, uno scritto
   // vale il nuovo. Senza precedenti resta un trattino, che non vale nulla.
@@ -1502,17 +1457,18 @@
 
   const valoreCampo = (input) => input.value.trim() || input.dataset.suggerito || '';
 
+  // Il commento dell'ultima serie si vede in grigio allo stesso modo, ma a
+  // differenza dei numeri non vale nulla: se non se ne scrive uno nuovo la
+  // serie si salva senza commento.
   const aggiornaSuggerimenti = () => {
-    const ricordata = serieRicordata();
-    const serie = ricordata || {};
+    const serie = serieRicordata() || {};
     suggerisci(repetitionsInput, serie.ripetizioni);
     suggerisci(setsInput, serie.set);
     suggerisci(weightInput, serie.peso);
 
-    const descrizione = ricordata ? descriviSerie(serie) : '';
-    lastSeriesHint.textContent = descrizione ? descrizione + ' — i campi vuoti la ripetono' : '';
-    lastSeriesHint.classList.toggle('visible', descrizione !== '');
-    increaseReminder.classList.toggle('visible', serie.aumenta === true);
+    const commento = valoreTesto(serie.commento);
+    commentInput.placeholder = commento || 'Commento';
+    commentInput.classList.toggle('suggerito', commento !== '');
   };
 
   const impostaEsplosiva = (attiva) => {
@@ -1524,10 +1480,10 @@
 
   // Cambiando esercizio i numeri scritti per quello di prima non hanno piu
   // senso e si svuotano (svuota); cambiando solo sottocategoria restano.
-  // Mono ed Esecuzione non hanno un placeholder: riprendono direttamente
-  // l'ultimo valore. Senza precedenti l'esecuzione parte pulita. Aumenta
-  // invece parte spento: vale per la volta dopo, e quello dell'ultima serie
-  // compare come promemoria sopra i numeri.
+  // Mono, Esecuzione e Aumenta non hanno un placeholder: riprendono
+  // direttamente l'ultimo valore, cosi salvando senza toccare nulla la serie
+  // e uguale all'ultima. Senza precedenti l'esecuzione parte pulita e Aumenta
+  // spento; Aumenta resta spento anche se l'ultima esecuzione non era pulita.
   const applicaUltimaSerie = (svuota) => {
     if (svuota) {
       repetitionsInput.value = '';
@@ -1537,7 +1493,7 @@
     const serie = serieRicordata();
     monoInput.checked = !!serie && serie.mono === true;
     impostaEsecuzione(serie ? valoreTesto(serie.esecuzione).toLowerCase() : ESECUZIONI[0].valore);
-    impostaAumenta(false);
+    impostaAumenta(!!serie && serie.aumenta === true && !increaseBtn.disabled);
     aggiornaSuggerimenti();
   };
 
@@ -1921,7 +1877,7 @@
   // scriptVecchio: il foglio risponde ma con un Code.gs precedente. Lo si
   // capisce da versione nelle risposte, che cresce insieme a VERSIONE in
   // Code.gs; versionePubblicata e quella letta, 0 se la risposta non la dice.
-  const VERSIONE_SCRIPT = 7;
+  const VERSIONE_SCRIPT = 8;
   let scriptVecchio = false;
   let versionePubblicata = 0;
 
@@ -1931,11 +1887,14 @@
   };
 
   // Cosa si perde finche lo script pubblicato resta a quella versione.
-  const cosaManca = () => (versionePubblicata < 3
-    ? 'la qualità di esecuzione e Aumenta non arrivano nel foglio'
-    : versionePubblicata < 4
-      ? 'Aumenta non arriva nel foglio e una serie rimandata dopo un problema di rete può finire due volte'
-      : 'Aumenta non arriva nel foglio e il suo promemoria si perde');
+  const cosaManca = () => {
+    const manca = [];
+    if (versionePubblicata < 3) manca.push('la qualità di esecuzione non arriva nel foglio');
+    if (versionePubblicata < 4) manca.push('una serie rimandata dopo un problema di rete può finire due volte nel foglio');
+    if (versionePubblicata < 7) manca.push('Aumenta non arriva nel foglio');
+    if (versionePubblicata < 8) manca.push('il commento della volta prima non torna dal foglio');
+    return manca.length > 1 ? manca.slice(0, -1).join(', ') + ' e ' + manca[manca.length - 1] : manca.join('');
+  };
 
   const mostraAvviso = (testo, bottone) => {
     catalogNoticeText.textContent = testo;
@@ -2503,8 +2462,9 @@
     showStatus(status, 'success', 'Salvato ✓');
 
     // Data e gruppo restano: di solito segue un altro esercizio dello stesso
-    // gruppo. Esplosiva e Aumenta si spengono ed Esecuzione torna pulita:
-    // vanno dichiarate serie per serie.
+    // gruppo. Esplosiva si spegne ed Esecuzione torna pulita; Mono,
+    // Esecuzione e Aumenta riprendono l'ultima serie appena si sceglie
+    // l'esercizio.
     impostaEsplosiva(false);
     impostaEsecuzione(ESECUZIONI[0].valore);
     disegnaMenuEsercizi('');
