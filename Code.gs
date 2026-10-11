@@ -30,7 +30,8 @@ const CONFIG = {
 //   4: una serie rimandata con lo stesso id non viene scritta due volte
 //   5: colori dei gruppi muscolari nel foglio
 //   6: la serie va sotto l'ultima data, anche con checkbox e tendine pronte
-const VERSIONE = 6;
+//   7: colonna Aumenta
+const VERSIONE = 7;
 
 const CONFIG_SHEET_NAME = 'Configurazione';
 const CONFIG_MAX_CARATTERI = 45000; // una cella di Sheets ne regge 50.000
@@ -64,6 +65,7 @@ const SERIE_RICORDATE_SECONDI = 21600;
 // Le colonne del foglio, nell'ordine in cui vengono create. La riga si scrive
 // cercando ogni titolo nell'intestazione, non per posizione: cosi una colonna
 // nuova si puo aggiungere senza toccare le righe gia scritte.
+// casella: vero o falso, con le caselle di controllo come Mono ed Esplosiva.
 const COLONNE = [
   { titolo: 'Data',             valore: (p) => text(p.data) },
   { titolo: 'Gruppo muscolare', valore: (p) => text(p.gruppoMuscolare) },
@@ -72,8 +74,9 @@ const COLONNE = [
   { titolo: 'Ripetizioni',      valore: (p) => numeroOppureTesto(p.ripetizioni) },
   { titolo: 'Set',              valore: (p) => numeroOppureTesto(p.set) },
   { titolo: 'Peso (kg)',        valore: (p) => numeroOppureTesto(p.peso) },
-  { titolo: 'Mono',             valore: (p) => booleano(p.mono) },
-  { titolo: 'Esplosiva',        valore: (p) => booleano(p.esplosiva) },
+  { titolo: 'Mono',             valore: (p) => booleano(p.mono), casella: true },
+  { titolo: 'Esplosiva',        valore: (p) => booleano(p.esplosiva), casella: true },
+  { titolo: 'Aumenta',          valore: (p) => booleano(p.aumenta), casella: true },
   { titolo: 'Esecuzione',       valore: (p) => text(p.esecuzione) },
   { titolo: 'Commento',         valore: (p) => text(p.commento) }
 ];
@@ -247,6 +250,7 @@ function leggiStorico() {
       peso: cella(riga, 'Peso (kg)'),
       mono: booleano(cella(riga, 'Mono')),
       esplosiva: esplosiva,
+      aumenta: booleano(cella(riga, 'Aumenta')),
       esecuzione: text(cella(riga, 'Esecuzione')),
       riga: i + 2
     });
@@ -373,7 +377,9 @@ function getSheet() {
  * Un foglio creato da una versione precedente non ha le colonne aggiunte dopo:
  * ciascuna viene inserita subito a destra di quella che la precede
  * nell'elenco. Le righe gia scritte scorrono insieme e si ritrovano con la
- * cella nuova vuota, che e il valore giusto per il passato.
+ * cella nuova vuota, che e il valore giusto per il passato. Una colonna
+ * vero/falso nasce invece con le caselle di controllo su tutte le righe,
+ * spente: per il passato vale falso.
  */
 function ensureHeaders(sheet) {
   if (sheet.getLastRow() === 0) {
@@ -394,6 +400,9 @@ function ensureHeaders(sheet) {
     if (precedente === -1) sheet.insertColumnBefore(1);
     else sheet.insertColumnAfter(precedente + 1);
     sheet.getRange(1, precedente + 2).setValue(colonna.titolo);
+    if (colonna.casella && sheet.getMaxRows() > 1) {
+      sheet.getRange(2, precedente + 2, sheet.getMaxRows() - 1, 1).insertCheckboxes();
+    }
     intestazioni = leggiIntestazioni(sheet);
   });
 

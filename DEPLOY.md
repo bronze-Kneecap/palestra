@@ -14,8 +14,9 @@ Quando invece cambia, l'app se ne accorge: se lo script pubblicato e rimasto
 indietro, la schermata Allenamento mostra un avviso con la versione pubblicata
 e quella che l'app si aspetta (`VERSIONE` in cima a `Code.gs`), finche non lo
 ripubblichi. Quando l'avviso sparisce, la ripubblicazione e andata a buon fine.
-Le colonne nuove (per esempio `Sottocategoria` o `Esecuzione`) le aggiunge lo
-script da solo alla prima serie salvata, senza spostare le righe gia scritte.
+Le colonne nuove (per esempio `Sottocategoria`, `Esecuzione` o `Aumenta`) le
+aggiunge lo script da solo alla prima serie salvata, senza spostare le righe
+gia scritte.
 
 Il workflow `Deploy Google Apps Script` resta spento finche non aggiungi i
 secret: segnala che non e configurato e chiude senza errori.
